@@ -10,7 +10,7 @@
 .home-nav-item small { margin-left: auto; border-radius: 8px; padding: 3px 7px; color: #21202b; background: #f2e9ff; font-size: 8px; font-weight: 800; }
 .dm-heading { height: 49px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; color: #858694; font-size: 10px; font-weight: 800; letter-spacing: .8px; }
 .dm-heading button { border: 0; background: transparent; color: #999aa7; display: grid; place-items: center; }
-.dm-list { padding: 0 7px; overflow-y: auto; flex: 1; }
+.dm-list { min-height: 0; padding: 0 7px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; flex: 1; }
 .dm-item { width: 100%; height: 46px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 7px; padding: 0 8px; color: #b8b9c4; background: transparent; text-align: left; }
 .dm-item:hover, .dm-item.active { background: #2c2d35; color: #fff; }
 .dm-item.has-unread { background: #30272a; }
@@ -22,7 +22,7 @@
 .dm-unread { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center; color: white; background: #ed4245; font-size: 10px; }
 @keyframes dm-avatar-alert { 0%, 100% { box-shadow: 0 0 0 1px #ed4245, 0 0 5px #ed424566; } 50% { box-shadow: 0 0 0 3px #ed4245, 0 0 14px #ed4245cc; } }
 .home-area { background: #111216; }
-.home-content { flex: 1; min-height: 0; overflow-y: auto; width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 52px 0; }
+.home-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 52px 0; }
 .home-welcome { padding: 30px; border: 1px solid #30313c; border-radius: 15px; background: radial-gradient(ellipse at 90% 0%, #7163c62b, transparent 48%), #191a21; }
 .home-welcome-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: #c3baff; background: #8c7cf033; margin-bottom: 20px; }
 .home-welcome > span, .home-section-title { color: #9697a5; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
@@ -39,7 +39,7 @@
 .home-cards strong { align-self: end; font-size: 13px; }
 .home-cards small { align-self: start; margin-top: 3px; color: #9697a5; font-size: 11px; }
 .dm-conversation { margin: 0; width: 100%; color: #f0eff7; }
-.dm-conversation.dm-chat { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 23px 20px; }
+.dm-conversation.dm-chat { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 22px 23px 20px; }
 .dm-conversation.dm-chat .message-row { width: 100%; margin: 8px 0; }
 .dm-server-invite-card { width: min(360px, 100%); overflow: hidden; border: 1px solid #3f4147; border-radius: 14px; background: #18191c; box-shadow: 0 8px 28px #0004; }
 .dm-server-invite-cover { height: 100px; display: flex; align-items: flex-end; padding: 0 16px; background: radial-gradient(circle at 75% 15%, #8272ee77, transparent 32%), linear-gradient(135deg, #3b355f, #18191c 78%); }
