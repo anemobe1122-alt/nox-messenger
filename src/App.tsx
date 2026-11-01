@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import "./home.css";
 import {
   Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users,
   ChevronDown, Headphones, Mic, Bell, LogOut, X, LoaderCircle, ShieldCheck,
-  Sparkles, Menu
+  Sparkles, Menu, UserRound, Store, ListTodo, MessageSquare, CirclePlus
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
@@ -70,6 +71,9 @@ export default function App() {
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [members, setMembers] = useState<Profile[]>([]);
+  const [activeView, setActiveView] = useState<"home" | "server">("server");
+  const [activeHomeTab, setActiveHomeTab] = useState("Сообщения");
+  const [activeDm, setActiveDm] = useState("");
 
   const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
   const channels = channelsBySpace[activeSpaceId] || [];
@@ -305,14 +309,14 @@ export default function App() {
   const currentName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "Гость";
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${activeView === "home" ? "home-shell" : ""}`}>
       <aside className={`server-rail ${sidebarOpen ? "rail-open" : ""}`}>
-        <button className="brand-mark" title="Nox" onClick={() => { setActiveSpaceId("demo-lobby"); setActiveChannelId("demo-general"); }}>
+        <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""}`} title="Главная" onClick={() => { setActiveView("home"); setActiveHomeTab("Сообщения"); setActiveDm(""); setSidebarOpen(false); }}>
           <span className="brand-glyph">n</span>
         </button>
         <div className="rail-separator" />
         {spaces.map((space) => (
-          <button key={space.id} className={`server-icon ${activeSpaceId === space.id ? "selected" : ""}`} title={space.name} onClick={() => chooseSpace(space)}>
+          <button key={space.id} className={`server-icon ${activeView === "server" && activeSpaceId === space.id ? "selected" : ""}`} title={space.name} onClick={() => { setActiveView("server"); chooseSpace(space); }}>
             <span>{initials(space.name)}</span>
             <i />
           </button>
@@ -322,7 +326,21 @@ export default function App() {
         <div className="rail-bottom"><button className="tiny-icon" title="Настройки"><Settings size={19} /></button></div>
       </aside>
 
-      <aside className={`channel-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+      {activeView === "home" ? <aside className={`channel-sidebar home-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+        <button className="home-search" onClick={() => setActiveHomeTab("Найти беседу")}><Search size={17}/><span>Найти или начать беседу</span></button>
+        <nav className="home-nav">
+          {[{label:"Друзья", icon:<UserRound size={19}/>},{label:"Nitro", icon:<Sparkles size={19}/>},{label:"Магазин", icon:<Store size={19}/>},{label:"Задания", icon:<ListTodo size={19}/>}].map((item) => <button key={item.label} className={`home-nav-item ${activeHomeTab === item.label ? "active" : ""}`} onClick={() => setActiveHomeTab(item.label)}>{item.icon}<span>{item.label}</span>{item.label === "Nitro" && <small>ПРЕДЛОЖЕНИЕ</small>}</button>)}
+        </nav>
+        <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setActiveHomeTab("Новая беседа")}><Plus size={18}/></button></div>
+        <div className="dm-list">
+          {[{name:"Nox", initials:"N", color:"#9383f5"},{name:"Pixel", initials:"PX", color:"#57b9a2"},{name:"Ночная смена", initials:"Н", color:"#db9b5e"}].map((person) => <button key={person.name} className={`dm-item ${activeDm === person.name ? "active" : ""}`} onClick={() => { setActiveDm(person.name); setActiveHomeTab("Сообщения"); }}><span className="dm-avatar" style={{background:person.color}}>{person.initials}</span><span className="dm-name">{person.name}</span><i/></button>)}
+        </div>
+        <div className="profile-bar">
+          <div className="avatar self-avatar">{initials(currentName)}</div><div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
+          <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>{user ? <LogOut size={17}/> : <Settings size={17}/>}</button>
+          <button className="profile-action" title="Микрофон"><Mic size={17}/></button><button className="profile-action" title="Звук"><Headphones size={17}/></button>
+        </div>
+      </aside> : <aside className={`channel-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
         <button className="space-heading" onClick={() => showNotice("Настройки сервера появятся в следующем обновлении.")}>
           <span>{activeSpace?.name || "Твои серверы"}</span><ChevronDown size={17} />
         </button>
@@ -350,9 +368,15 @@ export default function App() {
           <button className="profile-action" title="Микрофон"><Mic size={17}/></button>
           <button className="profile-action" title="Звук"><Headphones size={17}/></button>
         </div>
-      </aside>
+      </aside>}
 
-      <main className="chat-area">
+      {activeView === "home" ? <main className="chat-area home-area">
+        <header className="chat-header home-header"><button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button><strong>{activeDm || activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Новая беседа" onClick={() => setActiveHomeTab("Новая беседа")}><CirclePlus size={19}/></button></div></header>
+        {activeDm ? <div className="dm-conversation"><div className="dm-conversation-avatar">{activeDm === "Nox" ? "n" : initials(activeDm)}</div><h1>{activeDm}</h1><p>Это начало вашей беседы.</p><div className="dm-empty-note"><MessageSquare size={18}/> Здесь появятся ваши личные сообщения.</div></div> : <div className="home-content">
+          <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Выбери собеседника из списка слева или найди новых друзей." : "Общайся, открывай сообщества и оставайся на связи."}</p><button onClick={() => setActiveHomeTab("Друзья")}><UserRound size={17}/> Найти друзей</button></div>
+          <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => setActiveDm("Nox")}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { setActiveView("server"); chooseSpace(spaces[0]); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
+        </div>}
+      </main> : <main className="chat-area">
         <header className="chat-header">
           <button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button>
           <Hash size={22} className="header-hash"/>
@@ -404,9 +428,9 @@ export default function App() {
           </form>
           <p className="composer-hint">Общайся уважительно. Nox пока находится в разработке.</p>
         </div>
-      </main>
+      </main>}
 
-      <aside className="member-sidebar">
+      {activeView === "server" && <aside className="member-sidebar">
         <div className="member-heading">УЧАСТНИКИ — {user ? members.length : "—"}</div>
         {user && members.length ? members.map((person) => (
           <div className="member-row" key={person.id}>
@@ -422,7 +446,7 @@ export default function App() {
           </div>
         )}
         <div className="right-tip"><span className="tip-spark">✦</span><strong>Маленький совет</strong><p>Создай отдельный канал для каждой темы — так разговоры будет проще находить.</p></div>
-      </aside>
+      </aside>}
 
       {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
 
