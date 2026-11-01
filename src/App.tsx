@@ -4,7 +4,7 @@ import "./home.css";
 import {
   Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users,
   ChevronDown, Headphones, Mic, Bell, LogOut, X, LoaderCircle, ShieldCheck,
-  Sparkles, Menu, UserRound, Store, ListTodo, MessageSquare, CirclePlus, Trash2
+  Sparkles, Menu, UserRound, Store, MessageSquare, CirclePlus, Trash2
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
@@ -541,6 +541,11 @@ export default function App() {
     return all.filter((m, i) => all.findIndex((x) => x.id === m.id) === i && m.content.toLocaleLowerCase().includes(q)).slice(0, 20);
   }, [messages, searchQuery]);
   const currentName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "Гость";
+  const homeActionLabel = activeHomeTab === "Друзья"
+    ? "Найти друзей"
+    : ["Сообщения", "Найти беседу", "Новая беседа"].includes(activeHomeTab)
+      ? "Новая беседа"
+      : "";
 
   return (
     <div className={`app-shell ${activeView === "home" ? "home-shell" : ""} ${!membersOpen ? "members-hidden" : ""}`}>
@@ -563,7 +568,7 @@ export default function App() {
       {activeView === "home" ? <aside className={`channel-sidebar home-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
         <button className="home-search" onClick={() => setSearchOpen(true)}><Search size={17}/><span>Найти или начать беседу</span></button>
         <nav className="home-nav">
-          {[{label:"Друзья", icon:<UserRound size={19}/>},{label:"Nitro", icon:<Sparkles size={19}/>},{label:"Магазин", icon:<Store size={19}/>},{label:"Задания", icon:<ListTodo size={19}/>}].map((item) => <button key={item.label} className={`home-nav-item ${activeHomeTab === item.label ? "active" : ""}`} onClick={() => { setActiveHomeTab(item.label); setActiveDm(""); }}>{item.icon}<span>{item.label}</span>{item.label === "Nitro" && <small>ПРЕДЛОЖЕНИЕ</small>}</button>)}
+          {[{label:"Друзья", icon:<UserRound size={19}/>},{label:"Nitro", icon:<Sparkles size={19}/>},{label:"Магазин", icon:<Store size={19}/>}].map((item) => <button key={item.label} className={`home-nav-item ${activeHomeTab === item.label ? "active" : ""}`} onClick={() => { setActiveHomeTab(item.label); setActiveDm(""); }}>{item.icon}<span>{item.label}</span>{item.label === "Nitro" && <small>ПРЕДЛОЖЕНИЕ</small>}</button>)}
         </nav>
         <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setSearchOpen(true)}><Plus size={18}/></button></div>
         <div className="dm-list">
@@ -628,7 +633,7 @@ export default function App() {
           </div>
           <div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div>
         </> : <div className="home-content">
-          <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Выбери собеседника из списка слева или найди новых друзей." : "Общайся, открывай сообщества и оставайся на связи."}</p><button onClick={() => setSearchOpen(true)}><UserRound size={17}/> Найти друзей</button></div>
+          <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Сообщения" || activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Начни личную беседу или продолжи общение." : activeHomeTab === "Nitro" ? "Дополнительные возможности появятся позже." : activeHomeTab === "Магазин" ? "Магазин оформления появится позже." : "Общайся, открывай сообщества и оставайся на связи."}</p>{homeActionLabel && <button onClick={() => setSearchOpen(true)}><UserRound size={17}/> {homeActionLabel}</button>}</div>
           <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => { if (dmContacts[0]) setActiveDm(dmContacts[0].id); else setSearchOpen(true); }}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { if (spaces[0]) { setActiveView("server"); chooseSpace(spaces[0]); } else setCreateSpaceOpen(true); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
         </div>}
       </main> : <main className="chat-area">
