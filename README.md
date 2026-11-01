@@ -40,7 +40,7 @@ The app runs in demo mode until Supabase credentials are added.
 1. Open https://supabase.com and create a project.
 2. In the project dashboard, open **SQL Editor**.
 3. Copy and run the entire contents of `supabase/schema.sql`.
-4. Run `supabase/nox-upgrade.sql` to add private messages, friend requests, shared avatars, message deletion, channel slowmode, shared profile statuses, realtime notifications and server/channel settings. It can also be run on an existing project with the core schema already installed.
+4. Run `supabase/nox-upgrade.sql` to add private messages, friend requests, shared avatars, message deletion, channel slowmode, shared profile statuses, realtime notifications, server invitations, server deletion and server/channel settings. It can also be run on an existing project with the core schema already installed.
 5. Open **Project Settings → API** (or the project's API keys page) and copy the Project URL and publishable/anon key.
 6. Put those values in `.env.local`:
 

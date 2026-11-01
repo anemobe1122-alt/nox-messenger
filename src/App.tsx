@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import "./home.css";
 import {
-  Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users,
+  Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users, ArrowLeft,
   ChevronDown, Headphones, Mic, Bell, LogOut, X, LoaderCircle, ShieldCheck,
   Sparkles, UserRound, Store, MessageSquare, CirclePlus, Trash2, UserPlus, UserCheck, ImagePlus
 } from "lucide-react";
@@ -70,6 +70,9 @@ export default function App() {
   const [channelMenuFor, setChannelMenuFor] = useState("");
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const [serverNameDraft, setServerNameDraft] = useState("");
+  const [serverInviteOpen, setServerInviteOpen] = useState(false);
+  const [invitingFriendId, setInvitingFriendId] = useState("");
+  const [deleteServerOpen, setDeleteServerOpen] = useState(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = useState(false);
   const [deleteChannelOpen, setDeleteChannelOpen] = useState(false);
   const [slowmodeDraft, setSlowmodeDraft] = useState("0");
@@ -101,6 +104,7 @@ export default function App() {
   const channels = channelsBySpace[activeSpaceId] || [];
   const activeChannel = channels.find((c) => c.id === activeChannelId) || channels[0];
   const canManageChannels = !supabase || activeSpace?.id.startsWith("demo-") || activeSpace?.id.startsWith("local-") || activeSpace?.owner_id === user?.id;
+  const canInviteFriends = !!user && !!activeSpace && (activeSpace.owner_id === user.id || members.some((member) => member.id === user.id));
 
   const showNotice = useCallback((text: string) => {
     setNotice(text);
@@ -190,6 +194,52 @@ export default function App() {
     showNotice("Настройки сервера сохранены.");
   }
 
+  async function inviteFriendToServer(friend: FriendRelation) {
+    if (!supabase || !user || !activeSpace || !canInviteFriends) return;
+    setInvitingFriendId(friend.id);
+    const { data, error } = await supabase.rpc("invite_friend_to_server", {
+      target_server_id: activeSpace.id,
+      target_user_id: friend.id
+    });
+    setInvitingFriendId("");
+    if (error) {
+      showNotice(`Не удалось пригласить. Примени supabase/nox-upgrade.sql: ${error.message}`);
+      return;
+    }
+    if (!data) { showNotice(`${friend.display_name || friend.username} уже участвует в сервере.`); return; }
+    setMembers((old) => old.some((member) => member.id === friend.id) ? old : [...old, friend]);
+    showNotice(`${friend.display_name || friend.username} приглашён в «${activeSpace.name}».`);
+  }
+
+  async function deleteActiveServer() {
+    if (!activeSpace || !canManageChannels) return;
+    const serverToDelete = activeSpace;
+    const remote = !!supabase && !!user && !serverToDelete.id.startsWith("demo-") && !serverToDelete.id.startsWith("local-");
+    if (remote) {
+      const { data, error } = await supabase!.from("servers").delete().eq("id", serverToDelete.id).select("id").maybeSingle();
+      if (error || !data) {
+        showNotice(error?.message || "Не удалось удалить сервер. Удалять сервер может только владелец.");
+        return;
+      }
+    }
+    const nextSpaces = spaces.filter((space) => space.id !== serverToDelete.id);
+    const nextChannelsBySpace = { ...channelsBySpace };
+    delete nextChannelsBySpace[serverToDelete.id];
+    const nextSpace = nextSpaces[0];
+    const nextChannel = nextSpace ? (nextChannelsBySpace[nextSpace.id] || [])[0] : undefined;
+    setSpaces(nextSpaces);
+    setChannelsBySpace(nextChannelsBySpace);
+    setActiveSpaceId(nextSpace?.id || "");
+    setActiveChannelId(nextChannel?.id || "");
+    setMessages([]);
+    setMembers([]);
+    setActiveView(nextSpace ? "server" : "home");
+    setSidebarOpen(window.matchMedia("(max-width: 760px)").matches && !!nextSpace);
+    setDeleteServerOpen(false);
+    setServerSettingsOpen(false);
+    showNotice(`Сервер «${serverToDelete.name}» удалён.`);
+  }
+
   const loadSpaces = useCallback(async (uid: string) => {
     if (!supabase) return;
     const { data: memberships, error } = await supabase.from("server_members").select("server_id").eq("user_id", uid);
@@ -243,6 +293,7 @@ export default function App() {
       if (current) {
         setShowAuth(false);
         setActiveView("home");
+        setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
         setActiveDm("");
         await loadProfile(current);
         await loadSpaces(current.id);
@@ -264,6 +315,7 @@ export default function App() {
       else {
         setShowAuth(false);
         setActiveView("home");
+        setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
         setActiveDm("");
         window.setTimeout(async () => {
           await loadProfile(current);
@@ -274,6 +326,18 @@ export default function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, [loadProfile, loadSpaces, loadDirectContacts]);
+
+  useEffect(() => {
+    if (!supabase || !user) return;
+    const channel = supabase.channel(`server-invites:${user.id}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "server_members", filter: `user_id=eq.${user.id}`
+      }, async () => {
+        await loadSpaces(user.id);
+        showNotice("Тебя добавили на сервер.");
+      }).subscribe();
+    return () => { void supabase!.removeChannel(channel); };
+  }, [user, loadSpaces, showNotice]);
 
   useEffect(() => {
     if (user) void loadFriendRelations(user.id);
@@ -502,6 +566,8 @@ export default function App() {
         if (error) throw error;
         if (data.session && data.user) {
           setUser(data.user);
+          setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
+          setActiveView("home");
           await loadProfile(data.user);
           await loadSpaces(data.user.id);
           await loadDirectContacts(data.user.id);
@@ -515,6 +581,7 @@ export default function App() {
         if (error) throw error;
         setUser(data.user);
         setActiveView("home");
+        setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
         await loadProfile(data.user);
         await loadSpaces(data.user.id);
         await loadDirectContacts(data.user.id);
@@ -843,9 +910,14 @@ export default function App() {
     <div className={`app-shell ${activeView === "home" ? "home-shell" : ""} ${!membersOpen ? "members-hidden" : ""}`}>
       <aside className={`server-rail ${sidebarOpen ? "rail-open" : ""}`}>
         <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""} ${totalUnreadDms ? "has-notifications" : ""}`} title={totalUnreadDms ? `Главная — ${totalUnreadDms} непрочитанных личных сообщений` : "Главная"} onClick={() => {
-          if (window.matchMedia("(max-width: 760px)").matches && activeView === "home") { setSidebarOpen((open) => !open); return; }
+          const isMobile = window.matchMedia("(max-width: 760px)").matches;
+          if (isMobile && activeView === "home") {
+            if (activeDm || activeHomeTab !== "Сообщения") { setActiveHomeTab("Сообщения"); setActiveDm(""); setSidebarOpen(true); }
+            else setSidebarOpen((open) => !open);
+            return;
+          }
           setActiveView("home"); setActiveHomeTab("Сообщения"); setActiveDm("");
-          setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
+          setSidebarOpen(isMobile);
         }}>
           <span className="brand-glyph">n</span>{totalUnreadDms > 0 && <b className="rail-unread">{totalUnreadDms > 99 ? "99+" : totalUnreadDms}</b>}
         </button>
@@ -897,10 +969,12 @@ export default function App() {
             <span>{activeSpace?.name || "Твои серверы"}</span><ChevronDown size={17} />
           </button>
           {channelMenuOpen && <div className="space-actions-menu">
-            {canManageChannels ? <>
+            {canManageChannels && <>
               <button onClick={() => { setServerNameDraft(activeSpace?.name || ""); setServerSettingsOpen(true); setChannelMenuOpen(false); }}><Settings size={16}/> Настройки сервера</button>
               <button onClick={() => { setCreateChannelOpen(true); setChannelMenuOpen(false); }}><Plus size={16}/> Создать канал</button>
-            </> : <p>Общие настройки сервера может менять только владелец.</p>}
+            </>}
+            {canInviteFriends && <button onClick={() => { setServerInviteOpen(true); setChannelMenuOpen(false); }}><UserPlus size={16}/> Пригласить друзей</button>}
+            {!canManageChannels && !canInviteFriends && <p>Участники сервера могут приглашать друзей.</p>}
           </div>}
         </div>
         <div className="sidebar-scroll">
@@ -926,7 +1000,7 @@ export default function App() {
       </aside>}
 
       {activeView === "home" ? <main className="chat-area home-area">
-        <header className="chat-header home-header"><strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
+        <header className="chat-header home-header">{(activeDm || activeHomeTab !== "Сообщения") && <button className="mobile-sidebar-button" title="Назад к беседам" onClick={() => { setActiveDm(""); setActiveHomeTab("Сообщения"); setSidebarOpen(true); }}><ArrowLeft size={19}/></button>}<strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
         {activeDm ? <>
           <div className="dm-conversation dm-chat">
             <ProfileAvatar profile={activeDmContact} name={activeDmContact?.display_name || activeDmContact?.username || "N"} className="dm-conversation-avatar" />
@@ -982,6 +1056,7 @@ export default function App() {
         </div>}
       </main> : <main className="chat-area">
         <header className="chat-header">
+          <button className="mobile-sidebar-button" title="К списку каналов" onClick={() => setSidebarOpen(true)}><ArrowLeft size={19}/></button>
           <Hash size={22} className="header-hash"/>
           <strong>{activeChannel?.name || "выбери-канал"}</strong>
           <div className="header-divider"/>
@@ -1110,8 +1185,41 @@ export default function App() {
           <p className="modal-subtitle">Общие настройки «{activeSpace.name}»</p>
           <label>Название сервера<input value={serverNameDraft} onChange={(e) => setServerNameDraft(e.target.value)} maxLength={48} required /></label>
           <p className="auth-note">Новое название увидят все участники сервера.</p>
+          <div className="server-settings-actions">
+            <button type="button" className="secondary-button" onClick={() => setServerInviteOpen(true)}><UserPlus size={16}/> Пригласить друзей</button>
+            <button type="button" className="danger-button" onClick={() => setDeleteServerOpen(true)}><Trash2 size={16}/> Удалить сервер</button>
+          </div>
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setServerSettingsOpen(false)}>Отмена</button><button className="primary-button">Сохранить</button></div>
         </form>
+      </div>}
+
+      {serverInviteOpen && activeSpace && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setServerInviteOpen(false); }}>
+        <div className="modal server-invite-modal">
+          <button type="button" className="modal-close" onClick={() => setServerInviteOpen(false)}><X size={19}/></button>
+          <h2>Пригласить друзей</h2>
+          <p className="modal-subtitle">В сервер «{activeSpace.name}»</p>
+          <div className="server-invite-list">
+            {acceptedFriends.length ? acceptedFriends.map((friend) => {
+              const alreadyJoined = members.some((member) => member.id === friend.id);
+              return <div className="server-invite-row" key={friend.id}>
+                <ProfileAvatar profile={friend} name={friend.display_name || friend.username} className="dm-avatar" />
+                <span className="server-invite-copy"><strong>{friend.display_name || friend.username}</strong><small>@{friend.username}</small></span>
+                <button className={alreadyJoined ? "friend-pending-label" : "friend-message-button"} disabled={alreadyJoined || invitingFriendId === friend.id} onClick={() => void inviteFriendToServer(friend)}>
+                  {alreadyJoined ? "Уже участник" : invitingFriendId === friend.id ? "Приглашаю…" : "Пригласить"}
+                </button>
+              </div>;
+            }) : <p className="friend-empty">Сначала добавь людей в друзья — тогда их можно будет пригласить сюда.</p>}
+          </div>
+        </div>
+      </div>}
+
+      {deleteServerOpen && activeSpace && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteServerOpen(false); }}>
+        <div className="modal">
+          <button type="button" className="modal-close" onClick={() => setDeleteServerOpen(false)}><X size={19}/></button>
+          <h2>Удалить сервер?</h2>
+          <p className="modal-subtitle">«{activeSpace.name}», его каналы и сообщения будут удалены у всех участников.</p>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setDeleteServerOpen(false)}>Отмена</button><button type="button" className="danger-button" onClick={() => void deleteActiveServer()}>Удалить сервер</button></div>
+        </div>
       </div>}
 
       {deleteChannelOpen && activeChannel && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteChannelOpen(false); }}>
