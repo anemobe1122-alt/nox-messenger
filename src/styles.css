@@ -371,6 +371,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .message-meta { display: flex; align-items: baseline; gap: 9px; margin-bottom: 4px; }
 .message-meta strong { font-size: 12px; color: #f0eff7; }
 .message-meta time { font-size: 10px; color: #777988; }
+.message-delete-button { width: 28px; height: 28px; margin: -7px 0 -7px auto; border: 0; border-radius: 6px; display: grid; place-items: center; flex: 0 0 auto; color: #949ba4; background: transparent; opacity: 0; transition: color .15s, background .15s, opacity .15s; }
+.message-delete-button:hover { color: #fff; background: #da373c; }
+.message-row:hover .message-delete-button, .message-delete-button:focus-visible { opacity: 1; }
 .message-body p { color: #d0d0db; font-size: 12px; line-height: 1.65; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .composer-wrap { padding: 10px 19px 12px; flex: 0 0 auto; }
@@ -636,7 +639,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 @media (max-width: 760px) {
-  .app-shell { grid-template-columns: 62px minmax(0, 1fr); }
+  .app-shell { height: 100dvh; min-height: 0; grid-template-columns: 62px minmax(0, 1fr); }
+  .chat-area { min-height: 0; }
   .server-rail { padding-top: 12px; }
   .channel-sidebar {
     position: fixed;
@@ -648,19 +652,30 @@ button:disabled { cursor: not-allowed; opacity: .55; }
     transform: translateX(-120%);
     transition: transform .2s ease;
     box-shadow: 15px 0 40px #0005;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .channel-sidebar.sidebar-open { transform: translateX(0); }
   .chat-header { padding: 0 11px; gap: 7px; height: 58px; }
   .mobile-menu { display: grid; }
   .header-topic, .header-divider { display: none; }
   .header-actions { gap: 0; }
-  .header-actions button { padding: 6px; }
+  .header-actions button { min-width: 40px; min-height: 40px; padding: 6px; }
   .setup-banner { padding: 9px 10px; gap: 7px; }
   .setup-banner button { display: none; }
   .messages-scroll { padding: 13px 12px; }
   .welcome-block { padding-top: 18px; }
   .welcome-block h1 { font-size: 19px; }
-  .composer-wrap { padding: 8px 10px 10px; }
+  .composer-wrap { padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); }
+  .composer-hint { display: none; }
+  .composer .send-button { width: 38px; height: 38px; flex: 0 0 auto; }
+  .home-content { width: calc(100% - 24px); margin: 20px auto; }
+  .toast { max-width: calc(100vw - 20px); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .modal-backdrop { place-items: start center; overflow-y: auto; padding: max(12px, env(safe-area-inset-top)) 12px 12px; }
+  .modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
+}
+
+@media (hover: none) {
+  .message-delete-button { width: 36px; height: 36px; margin: -11px 0 -11px auto; opacity: 1; }
 }
 
 @media (max-width: 420px) {
@@ -670,4 +685,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .message-avatar { width: 31px; height: 31px; }
   .welcome-block p { line-height: 1.5; }
   .modal { padding: 24px 20px; }
+  .home-content { width: calc(100% - 20px); }
+  .home-welcome { padding: 20px; }
+  .home-cards { grid-template-columns: 1fr; }
+  .message-delete-button { width: 40px; height: 40px; }
 }

@@ -4,7 +4,7 @@ import "./home.css";
 import {
   Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users,
   ChevronDown, Headphones, Mic, Bell, LogOut, X, LoaderCircle, ShieldCheck,
-  Sparkles, Menu, UserRound, Store, ListTodo, MessageSquare, CirclePlus
+  Sparkles, Menu, UserRound, Store, ListTodo, MessageSquare, CirclePlus, Trash2
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
@@ -281,6 +281,11 @@ export default function App() {
         const { data: person } = await supabase!.from("profiles").select("id, username, display_name, avatar_url").eq("id", row.user_id).maybeSingle();
         const message = { ...row, channel_id: conversationId, profile: person as Profile | undefined } as Message;
         setDmMessages((old) => ({ ...old, [conversationId]: (old[conversationId] || []).some((m) => m.id === message.id) ? old[conversationId] : [...(old[conversationId] || []), message] }));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "direct_messages" }, (payload) => {
+        const old = payload.old as any;
+        if (!old?.id) return;
+        setDmMessages((messages) => ({ ...messages, [conversationId]: (messages[conversationId] || []).filter((message) => message.id !== old.id) }));
       }).subscribe();
     return () => { cancelled = true; supabase!.removeChannel(channel); };
   }, [activeDm, activeDmContact?.conversationId, activeDmKey, user, showNotice]);
@@ -295,6 +300,11 @@ export default function App() {
         const row = payload.new as Message;
         const { data: p } = await supabase!.from("profiles").select("*").eq("id", row.user_id).maybeSingle();
         setMessages((old) => old.some((m) => m.id === row.id) ? old : [...old, { ...row, profile: p as Profile | undefined }]);
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
+        const old = payload.old as any;
+        if (!old?.id) return;
+        setMessages((oldMessages) => oldMessages.filter((message) => message.id !== old.id));
       }).subscribe();
     return () => { supabase!.removeChannel(channel); };
   }, [activeChannelId]);
@@ -439,6 +449,42 @@ export default function App() {
     setDraft("");
   }
 
+  async function deleteMessage(message: Message, direct: boolean) {
+    const isLocal = message.user_id === "you";
+    if (!isLocal && (!user || message.user_id !== user.id)) return;
+    if (direct && !isLocal && !activeDmContact?.conversationId) return;
+    if (!direct && !isLocal && !activeChannel?.id) return;
+
+    if (!isLocal && supabase && user) {
+      const conversationId = activeDmContact?.conversationId;
+      const channelId = activeChannel?.id;
+      if (direct && !conversationId) return;
+      if (!direct && !channelId) return;
+      const { data, error } = direct
+        ? await supabase.from("direct_messages").delete().eq("id", message.id).eq("conversation_id", conversationId!).eq("user_id", user.id).select("id").maybeSingle()
+        : await supabase.from("messages").delete().eq("id", message.id).eq("channel_id", channelId!).eq("user_id", user.id).select("id").maybeSingle();
+      if (error || !data) {
+        showNotice(error?.message ? `Не удалось удалить. Примени supabase/message-deletion.sql: ${error.message}` : "Не удалось удалить сообщение.");
+        return;
+      }
+    }
+
+    if (direct) {
+      setDmMessages((old) => {
+        const next = (old[activeDmKey] || []).filter((item) => item.id !== message.id);
+        if (isLocal) localStorage.setItem(`nox-dm-${activeDmKey}`, JSON.stringify(next));
+        return { ...old, [activeDmKey]: next };
+      });
+    } else {
+      setMessages((old) => {
+        const next = old.filter((item) => item.id !== message.id);
+        if (isLocal) localStorage.setItem(`nox-messages-${activeChannel?.id}`, JSON.stringify(next));
+        return next;
+      });
+    }
+    showNotice("Сообщение удалено.");
+  }
+
   async function createSpace(e: FormEvent) {
     e.preventDefault();
     const name = newSpaceName.trim();
@@ -561,7 +607,27 @@ export default function App() {
 
       {activeView === "home" ? <main className="chat-area home-area">
         <header className="chat-header home-header"><button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button><strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
-        {activeDm ? <><div className="dm-conversation dm-chat"><div className="dm-conversation-avatar">{initials(activeDmContact?.display_name || activeDmContact?.username || "N")}</div><h1>{activeDmContact?.display_name || activeDmContact?.username || "Личные сообщения"}</h1><p>Начало вашей переписки.</p>{(dmMessages[activeDmKey] || []).map((m) => { const isOwn = m.user_id === user?.id || m.user_id === "you"; const sender = isOwn ? currentName : (m.profile?.display_name || m.profile?.username || activeDmContact?.display_name || "Пользователь"); return <article className="message-row" key={m.id}><div className={`avatar message-avatar ${isOwn ? "own" : ""}`}>{initials(sender)}</div><div className="message-body"><div className="message-meta"><strong>{sender}</strong><time>{timeLabel(m.created_at)}</time></div><p>{m.content}</p></div></article>; })}</div><div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div></> : <div className="home-content">
+        {activeDm ? <>
+          <div className="dm-conversation dm-chat">
+            <div className="dm-conversation-avatar">{initials(activeDmContact?.display_name || activeDmContact?.username || "N")}</div>
+            <h1>{activeDmContact?.display_name || activeDmContact?.username || "Личные сообщения"}</h1>
+            <p>Начало вашей переписки.</p>
+            {(dmMessages[activeDmKey] || []).map((m) => {
+              const isOwn = m.user_id === user?.id || m.user_id === "you";
+              const sender = isOwn ? currentName : (m.profile?.display_name || m.profile?.username || activeDmContact?.display_name || "Пользователь");
+              return <article className="message-row" key={m.id}>
+                <div className={`avatar message-avatar ${isOwn ? "own" : ""}`}>{initials(sender)}</div>
+                <div className="message-body">
+                  <div className="message-meta"><strong>{sender}</strong><time>{timeLabel(m.created_at)}</time>
+                    {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(m, true)}><Trash2 size={15}/></button>}
+                  </div>
+                  <p>{m.content}</p>
+                </div>
+              </article>;
+            })}
+          </div>
+          <div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div>
+        </> : <div className="home-content">
           <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Выбери собеседника из списка слева или найди новых друзей." : "Общайся, открывай сообщества и оставайся на связи."}</p><button onClick={() => setSearchOpen(true)}><UserRound size={17}/> Найти друзей</button></div>
           <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => { if (dmContacts[0]) setActiveDm(dmContacts[0].id); else setSearchOpen(true); }}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { if (spaces[0]) { setActiveView("server"); chooseSpace(spaces[0]); } else setCreateSpaceOpen(true); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
         </div>}
@@ -596,11 +662,14 @@ export default function App() {
           </div>
           {visibleMessages.map((message) => {
             const name = message.profile?.display_name || message.profile?.username || "Пользователь";
+            const isOwn = message.user_id === user?.id || message.user_id === "you";
             return (
               <article className="message-row" key={message.id}>
-                <div className={`avatar message-avatar ${message.user_id === user?.id || message.user_id === "you" ? "own" : ""}`}>{initials(name)}</div>
+                <div className={`avatar message-avatar ${isOwn ? "own" : ""}`}>{initials(name)}</div>
                 <div className="message-body">
-                  <div className="message-meta"><strong>{name}</strong><time>{timeLabel(message.created_at)}</time></div>
+                  <div className="message-meta"><strong>{name}</strong><time>{timeLabel(message.created_at)}</time>
+                    {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(message, false)}><Trash2 size={15}/></button>}
+                  </div>
                   <p>{message.content}</p>
                 </div>
               </article>
