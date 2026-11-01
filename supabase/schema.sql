@@ -31,6 +31,7 @@ create table if not exists public.channels (
   server_id uuid not null references public.servers(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 50),
   type text not null default 'text' check (type in ('text')),
+  slowmode_seconds integer not null default 0 check (slowmode_seconds between 0 and 21600),
   created_at timestamptz not null default now()
 );
 
@@ -158,6 +159,8 @@ grant select on public.direct_conversations, public.direct_conversation_members,
 grant insert, delete on public.direct_messages to authenticated;
 grant delete on public.messages to authenticated;
 grant update (avatar_url) on public.profiles to authenticated;
+grant update (slowmode_seconds) on public.channels to authenticated;
+grant delete on public.channels to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.servers enable row level security;
@@ -208,6 +211,16 @@ create policy "server owners create channels" on public.channels
   for insert to authenticated with check (
     exists (select 1 from public.servers s
       where s.id = server_id and s.owner_id = auth.uid())
+  );
+create policy "server owners update channels" on public.channels
+  for update to authenticated using (
+    exists (select 1 from public.servers s where s.id = server_id and s.owner_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.servers s where s.id = server_id and s.owner_id = auth.uid())
+  );
+create policy "server owners delete channels" on public.channels
+  for delete to authenticated using (
+    exists (select 1 from public.servers s where s.id = server_id and s.owner_id = auth.uid())
   );
 
 create policy "members read messages" on public.messages
@@ -293,5 +306,35 @@ begin
 exception when undefined_object then
   raise notice 'Publication supabase_realtime was not found; enable Realtime for public.direct_messages in Supabase Dashboard.';
 end $$;
+
+create or replace function public.enforce_channel_slowmode()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  cooldown_seconds integer;
+  latest_message timestamptz;
+  remaining_seconds integer;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(new.channel_id::text || ':' || new.user_id::text, 0));
+  select c.slowmode_seconds into cooldown_seconds from public.channels c where c.id = new.channel_id;
+  if cooldown_seconds is null or cooldown_seconds <= 0 then return new; end if;
+  select max(m.created_at) into latest_message from public.messages m
+    where m.channel_id = new.channel_id and m.user_id = new.user_id;
+  if latest_message is not null then
+    remaining_seconds := ceil(extract(epoch from (latest_message + make_interval(secs => cooldown_seconds) - clock_timestamp())))::integer;
+    if remaining_seconds > 0 then raise exception using message = 'SLOWMODE:' || remaining_seconds::text, errcode = 'P0001'; end if;
+  end if;
+  new.created_at := clock_timestamp();
+  return new;
+end;
+$$;
+revoke all on function public.enforce_channel_slowmode() from public;
+grant execute on function public.enforce_channel_slowmode() to authenticated;
+drop trigger if exists enforce_channel_slowmode on public.messages;
+create trigger enforce_channel_slowmode before insert on public.messages
+  for each row execute function public.enforce_channel_slowmode();
 
 notify pgrst, 'reload schema';

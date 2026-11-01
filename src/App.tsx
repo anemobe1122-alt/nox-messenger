@@ -12,7 +12,7 @@ type Profile = { id: string; username: string; display_name: string | null; avat
 type DmContact = Profile & { conversationId?: string };
 type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
-type Channel = { id: string; server_id: string; name: string; type?: string };
+type Channel = { id: string; server_id: string; name: string; type?: string; slowmode_seconds?: number };
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile };
 
 const demoSpaces: Space[] = [
@@ -85,6 +85,12 @@ export default function App() {
   const [newSpaceName, setNewSpaceName] = useState("");
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
+  const [channelMenuOpen, setChannelMenuOpen] = useState(false);
+  const [channelSettingsOpen, setChannelSettingsOpen] = useState(false);
+  const [deleteChannelOpen, setDeleteChannelOpen] = useState(false);
+  const [slowmodeDraft, setSlowmodeDraft] = useState("0");
+  const [slowmodeUntil, setSlowmodeUntil] = useState<Record<string, number>>({});
+  const [slowmodeRemaining, setSlowmodeRemaining] = useState(0);
   const [members, setMembers] = useState<Profile[]>([]);
   const [activeView, setActiveView] = useState<"home" | "server">("server");
   const [activeHomeTab, setActiveHomeTab] = useState("Сообщения");
@@ -109,6 +115,7 @@ export default function App() {
   const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
   const channels = channelsBySpace[activeSpaceId] || [];
   const activeChannel = channels.find((c) => c.id === activeChannelId) || channels[0];
+  const canManageChannels = !supabase || activeSpace?.id.startsWith("demo-") || activeSpace?.id.startsWith("local-") || activeSpace?.owner_id === user?.id;
 
   const showNotice = useCallback((text: string) => {
     setNotice(text);
@@ -169,7 +176,7 @@ export default function App() {
       .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
       .order("created_at", { ascending: false });
     if (error) {
-      showNotice("Не удалось загрузить друзей. Примени supabase/friends-and-avatars.sql.");
+      showNotice("Не удалось загрузить друзей. Примени supabase/nox-upgrade.sql.");
       return;
     }
     const rows = relations || [];
@@ -265,6 +272,20 @@ export default function App() {
   }, [user, loadFriendRelations]);
 
   useEffect(() => { loadMessages(activeChannelId); }, [activeChannelId, loadMessages]);
+
+  useEffect(() => {
+    const until = slowmodeUntil[activeChannelId] || 0;
+    if (!until || until <= Date.now()) { setSlowmodeRemaining(0); return; }
+    let timer = 0;
+    const updateRemaining = () => {
+      const remaining = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      setSlowmodeRemaining((current) => current === remaining ? current : remaining);
+      if (remaining === 0 && timer) window.clearInterval(timer);
+    };
+    updateRemaining();
+    timer = window.setInterval(updateRemaining, 250);
+    return () => window.clearInterval(timer);
+  }, [activeChannelId, slowmodeUntil]);
 
   useEffect(() => {
     const query = searchQuery.trim();
@@ -363,12 +384,14 @@ export default function App() {
   }, [activeChannelId]);
 
   const chooseSpace = (space: Space) => {
+    setChannelMenuOpen(false);
     setActiveSpaceId(space.id);
     const next = channelsBySpace[space.id] || [];
     setActiveChannelId(next[0]?.id || "");
     setSidebarOpen(false);
   };
   const chooseChannel = (channel: Channel) => {
+    setChannelMenuOpen(false);
     setActiveChannelId(channel.id);
     setSidebarOpen(false);
   };
@@ -430,7 +453,7 @@ export default function App() {
       if (error || !data) {
         console.error("Failed to open direct chat:", error);
         const reason = error?.message ? ` ${error.message}` : " Функция создания чата не вернула результат.";
-        showNotice(`Не удалось открыть чат.${reason} Примени supabase/direct-messages.sql в SQL Editor Supabase.`);
+        showNotice(`Не удалось открыть чат.${reason} Примени supabase/nox-upgrade.sql в SQL Editor Supabase.`);
         return;
       }
       conversationId = data as string;
@@ -448,7 +471,7 @@ export default function App() {
     }
     const { data, error } = await supabase.rpc("send_friend_request", { target_user_id: person.id });
     if (error) {
-      showNotice(`Не удалось добавить в друзья. Примени supabase/friends-and-avatars.sql. ${error.message}`);
+      showNotice(`Не удалось добавить в друзья. Примени supabase/nox-upgrade.sql. ${error.message}`);
       return;
     }
     const result = data as string;
@@ -499,7 +522,7 @@ export default function App() {
       await Promise.all([loadDirectContacts(user.id), loadFriendRelations(user.id)]);
       showNotice("Аватар обновлён — его увидят остальные.");
     } catch (error: any) {
-      showNotice(`Не удалось загрузить аватар. Примени supabase/friends-and-avatars.sql. ${error?.message || ""}`);
+      showNotice(`Не удалось загрузить аватар. Примени supabase/nox-upgrade.sql. ${error?.message || ""}`);
     } finally {
       setAvatarBusy(false);
     }
@@ -541,7 +564,13 @@ export default function App() {
     e.preventDefault();
     const content = draft.trim();
     if (!content || !activeChannel) return;
-    if (!supabase || activeChannel.id.startsWith("demo-") || !user) {
+    const waitSeconds = Math.max(0, Math.ceil(((slowmodeUntil[activeChannel.id] || 0) - Date.now()) / 1000));
+    if (waitSeconds > 0) {
+      setSlowmodeRemaining(waitSeconds);
+      return;
+    }
+    const cooldown = activeChannel.slowmode_seconds || 0;
+    if (!supabase || activeChannel.id.startsWith("demo-") || activeChannel.id.startsWith("local-") || !user) {
       const local: Message = {
         id: crypto.randomUUID(), channel_id: activeChannel.id, user_id: "you",
         content, created_at: new Date().toISOString(),
@@ -550,13 +579,24 @@ export default function App() {
       setMessages((old) => [...old, local]);
       const next = [...messages, local];
       localStorage.setItem(`nox-messages-${activeChannel.id}`, JSON.stringify(next));
+      if (cooldown > 0) setSlowmodeUntil((old) => ({ ...old, [activeChannel.id]: Date.now() + cooldown * 1000 }));
       setDraft("");
       return;
     }
     const { error } = await supabase.from("messages").insert({
       channel_id: activeChannel.id, user_id: user.id, content
     });
-    if (error) { showNotice("Сообщение не отправлено. Возможно, у тебя нет доступа к каналу."); return; }
+    if (error) {
+      const slowmode = error.message.match(/SLOWMODE:(\d+)/);
+      if (slowmode) {
+        const seconds = Number(slowmode[1]);
+        setSlowmodeUntil((old) => ({ ...old, [activeChannel.id]: Date.now() + seconds * 1000 }));
+        setSlowmodeRemaining(seconds);
+        showNotice(`Медленный режим: подожди ${seconds} сек.`);
+      } else showNotice(error.message || "Сообщение не отправлено. Возможно, у тебя нет доступа к каналу.");
+      return;
+    }
+    if (cooldown > 0) setSlowmodeUntil((old) => ({ ...old, [activeChannel.id]: Date.now() + cooldown * 1000 }));
     setDraft("");
   }
 
@@ -575,7 +615,7 @@ export default function App() {
         ? await supabase.from("direct_messages").delete().eq("id", message.id).eq("conversation_id", conversationId!).eq("user_id", user.id).select("id").maybeSingle()
         : await supabase.from("messages").delete().eq("id", message.id).eq("channel_id", channelId!).eq("user_id", user.id).select("id").maybeSingle();
       if (error || !data) {
-        showNotice(error?.message ? `Не удалось удалить. Примени supabase/message-deletion.sql: ${error.message}` : "Не удалось удалить сообщение.");
+        showNotice(error?.message ? `Не удалось удалить. Примени supabase/nox-upgrade.sql: ${error.message}` : "Не удалось удалить сообщение.");
         return;
       }
     }
@@ -642,6 +682,49 @@ export default function App() {
     setChannelsBySpace((old) => ({ ...old, [activeSpace.id]: [...(old[activeSpace.id] || []), data as Channel] }));
     setActiveChannelId(data.id); setNewChannelName(""); setCreateChannelOpen(false);
     showNotice(`Канал #${name} создан.`);
+  }
+
+  async function saveChannelSettings(e: FormEvent) {
+    e.preventDefault();
+    if (!activeChannel || !activeSpace) return;
+    const seconds = Number(slowmodeDraft);
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21600) {
+      showNotice("Укажи целое число от 0 до 21600 секунд.");
+      return;
+    }
+    const isRemoteChannel = !!supabase && !!user && !activeChannel.id.startsWith("demo-") && !activeChannel.id.startsWith("local-");
+    if (isRemoteChannel) {
+      const { data, error } = await supabase!.from("channels").update({ slowmode_seconds: seconds }).eq("id", activeChannel.id).select("*").maybeSingle();
+      if (error || !data) {
+        showNotice(error?.message ? `Не удалось сохранить настройки. Примени supabase/nox-upgrade.sql: ${error.message}` : "Не удалось сохранить настройки.");
+        return;
+      }
+    }
+    setChannelsBySpace((old) => ({
+      ...old,
+      [activeSpace.id]: (old[activeSpace.id] || []).map((channel) => channel.id === activeChannel.id ? { ...channel, slowmode_seconds: seconds } : channel)
+    }));
+    setChannelSettingsOpen(false);
+    showNotice(seconds ? `Медленный режим: одно сообщение раз в ${seconds} сек.` : "Медленный режим выключен.");
+  }
+
+  async function deleteActiveChannel() {
+    if (!activeChannel || !activeSpace) return;
+    const isRemoteChannel = !!supabase && !!user && !activeChannel.id.startsWith("demo-") && !activeChannel.id.startsWith("local-");
+    if (isRemoteChannel) {
+      const { data, error } = await supabase!.from("channels").delete().eq("id", activeChannel.id).select("id").maybeSingle();
+      if (error || !data) {
+        showNotice(error?.message ? `Не удалось удалить канал. Проверь права владельца и supabase/nox-upgrade.sql: ${error.message}` : "Не удалось удалить канал.");
+        return;
+      }
+    }
+    const nextChannels = (channelsBySpace[activeSpace.id] || []).filter((channel) => channel.id !== activeChannel.id);
+    setChannelsBySpace((old) => ({ ...old, [activeSpace.id]: nextChannels }));
+    setActiveChannelId(nextChannels[0]?.id || "");
+    setMessages([]);
+    setDeleteChannelOpen(false);
+    setChannelMenuOpen(false);
+    showNotice(`Канал #${activeChannel.name} удалён.`);
   }
 
   const visibleMessages = useMemo(() => messages, [messages]);
@@ -713,9 +796,19 @@ export default function App() {
           <button className={`profile-action ${muted ? "control-active" : ""}`} title={muted ? "Включить микрофон" : "Выключить микрофон"} onClick={() => { setMuted(!muted); showNotice(muted ? "Микрофон включён" : "Микрофон выключен"); }}><Mic size={17}/></button><button className={`profile-action ${deafened ? "control-active" : ""}`} title={deafened ? "Включить звук" : "Выключить звук"} onClick={() => { setDeafened(!deafened); showNotice(deafened ? "Звук включён" : "Звук выключен"); }}><Headphones size={17}/></button>
         </div>
       </aside> : <aside className={`channel-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
-        <button className="space-heading" onClick={() => setCreateSpaceOpen(true)} title="Открыть действия сервера">
-          <span>{activeSpace?.name || "Твои серверы"}</span><ChevronDown size={17} />
-        </button>
+        <div className="space-heading-wrap">
+          <button className="space-heading" onClick={() => setChannelMenuOpen((open) => !open)} title="Настройки сервера и каналов" aria-expanded={channelMenuOpen}>
+            <span>{activeSpace?.name || "Твои серверы"}</span><ChevronDown size={17} />
+          </button>
+          {channelMenuOpen && <div className="space-actions-menu">
+            {canManageChannels ? <>
+              <button onClick={() => { setCreateChannelOpen(true); setChannelMenuOpen(false); }}><Plus size={16}/> Создать канал</button>
+              {activeChannel && <button onClick={() => { setSlowmodeDraft(String(activeChannel.slowmode_seconds || 0)); setChannelSettingsOpen(true); setChannelMenuOpen(false); setSidebarOpen(false); }}><Settings size={16}/> Настройки #{activeChannel.name}</button>}
+              {activeChannel && <button className="danger" onClick={() => { setDeleteChannelOpen(true); setChannelMenuOpen(false); setSidebarOpen(false); }}><Trash2 size={16}/> Удалить #{activeChannel.name}</button>}
+            </> : <p>Управлять каналами может владелец сервера.</p>}
+            <button onClick={() => { setCreateSpaceOpen(true); setChannelMenuOpen(false); }}><Plus size={16}/> Создать сервер</button>
+          </div>}
+        </div>
         <div className="sidebar-scroll">
           <div className="section-heading"><span>ТЕКСТОВЫЕ КАНАЛЫ</span><button title="Создать канал" onClick={() => setCreateChannelOpen(true)}><Plus size={16}/></button></div>
           {channels.length ? channels.map((channel) => (
@@ -725,11 +818,6 @@ export default function App() {
           )) : <p className="empty-small">Пока нет каналов.</p>}
           <button className="channel-item add-channel" onClick={() => setCreateChannelOpen(true)}><Plus size={16}/><span>Добавить канал</span></button>
 
-          <div className="sidebar-card">
-            <div className="card-icon"><Sparkles size={17}/></div>
-            <div><strong>Твоё пространство</strong><p>Создай сервер для друзей, команды или сообщества.</p></div>
-            <button onClick={() => setCreateSpaceOpen(true)}>Создать сервер</button>
-          </div>
         </div>
         <div className="profile-bar">
           <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={profile} name={currentName} className="avatar self-avatar" /></button>
@@ -845,11 +933,11 @@ export default function App() {
         <div className="composer-wrap">
           <form className="composer" onSubmit={sendMessage}>
             <label className="composer-plus" title="Прикрепить файл"><Plus size={22}/><input type="file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setDraft((d) => `${d}${d ? " " : ""}[Файл: ${file.name}]`); e.currentTarget.value = ""; }}/></label>
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Написать в #${activeChannel?.name || "канал"}`} aria-label="Сообщение" />
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={slowmodeRemaining > 0} placeholder={slowmodeRemaining > 0 ? `Можно написать через ${slowmodeRemaining} сек.` : `Написать в #${activeChannel?.name || "канал"}`} aria-label="Сообщение" />
             <button type="button" className="composer-tool" title="Эмодзи" onClick={() => setDraft((d) => d + " ✨")}>☺</button>
-            <button className="send-button" type="submit" disabled={!draft.trim()} title="Отправить"><Send size={18}/></button>
+            <button className="send-button" type="submit" disabled={!draft.trim() || slowmodeRemaining > 0} title={slowmodeRemaining > 0 ? `Подожди ${slowmodeRemaining} сек.` : "Отправить"}><Send size={18}/></button>
           </form>
-          <p className="composer-hint">Общайся уважительно. Nox пока находится в разработке.</p>
+          <p className="composer-hint">{slowmodeRemaining > 0 ? `Медленный режим: подожди ${slowmodeRemaining} сек.` : "Общайся уважительно. Nox пока находится в разработке."}</p>
         </div>
       </main>}
 
@@ -907,6 +995,28 @@ export default function App() {
 
       <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={uploadAvatar} />
       {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
+
+      {channelSettingsOpen && activeChannel && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setChannelSettingsOpen(false); }}>
+        <form className="modal" onSubmit={saveChannelSettings}>
+          <button type="button" className="modal-close" onClick={() => setChannelSettingsOpen(false)}><X size={19}/></button>
+          <h2>Настройки канала</h2>
+          <p className="modal-subtitle">#{activeChannel.name}</p>
+          <label>Медленный режим — секунд между твоими сообщениями
+            <input type="number" min="0" max="21600" step="1" value={slowmodeDraft} onChange={(e) => setSlowmodeDraft(e.target.value)} />
+          </label>
+          <p className="auth-note">0 — без задержки. Максимум — 21600 секунд (6 часов).</p>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setChannelSettingsOpen(false)}>Отмена</button><button className="primary-button">Сохранить</button></div>
+        </form>
+      </div>}
+
+      {deleteChannelOpen && activeChannel && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setDeleteChannelOpen(false); }}>
+        <div className="modal">
+          <button type="button" className="modal-close" onClick={() => setDeleteChannelOpen(false)}><X size={19}/></button>
+          <h2>Удалить канал?</h2>
+          <p className="modal-subtitle">Канал #{activeChannel.name} и его сообщения будут удалены.</p>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setDeleteChannelOpen(false)}>Отмена</button><button type="button" className="danger-button" onClick={() => void deleteActiveChannel()}>Удалить канал</button></div>
+        </div>
+      </div>}
 
       {showAuth && (
         <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowAuth(false); }}>

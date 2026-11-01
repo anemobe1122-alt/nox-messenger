@@ -133,6 +133,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 
+.space-heading-wrap { position: relative; flex: 0 0 auto; }
 .space-heading {
   height: 65px;
   padding: 0 17px;
@@ -149,6 +150,12 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 .space-heading:hover { background: #24252e; }
+.space-actions-menu { position: absolute; z-index: 60; top: 58px; left: 8px; right: 8px; padding: 6px; border: 1px solid #3f4147; border-radius: 9px; background: #1e1f22; box-shadow: 0 12px 32px #0008; display: flex; flex-direction: column; gap: 2px; }
+.space-actions-menu button { min-width: 0; min-height: 38px; border: 0; border-radius: 6px; padding: 8px 9px; display: flex; align-items: center; gap: 9px; color: #dbdee1; background: transparent; text-align: left; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.space-actions-menu button:hover { background: #35373c; }
+.space-actions-menu button.danger { color: #f28b8e; }
+.space-actions-menu button.danger:hover { background: #522d32; }
+.space-actions-menu p { margin: 7px 8px; color: #b5bac1; font-size: 11px; line-height: 1.45; }
 .sidebar-scroll { padding: 23px 10px 15px; overflow-y: auto; flex: 1; }
 
 .section-heading {
@@ -194,41 +201,6 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .channel-item.active svg { color: #b1a7ff; }
 .add-channel { opacity: .8; font-size: 12px; }
 .empty-small { color: #7f8191; font-size: 12px; padding: 0 9px; }
-
-.sidebar-card {
-  margin: 25px 4px 0;
-  border: 1px solid #363342;
-  border-radius: 12px;
-  padding: 13px 12px 12px;
-  background: linear-gradient(145deg, #2c2939, #24232c);
-}
-
-.card-icon {
-  display: grid;
-  place-items: center;
-  width: 29px;
-  height: 29px;
-  border-radius: 9px;
-  background: #8c7cf033;
-  color: #b8afff;
-  margin-bottom: 11px;
-}
-
-.sidebar-card strong { font-size: 12px; }
-.sidebar-card p { color: #a4a2b5; font-size: 11px; line-height: 1.55; margin: 5px 0 12px; }
-
-.sidebar-card button {
-  border: 0;
-  border-radius: 7px;
-  width: 100%;
-  padding: 9px 8px;
-  color: #1b1930;
-  font-weight: 800;
-  font-size: 11px;
-  background: #b2a8ff;
-}
-
-.sidebar-card button:hover { background: #c5bdff; }
 
 .profile-bar {
   height: 70px;
@@ -545,6 +517,12 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 .modal h2 { margin: 2px 0 0; font-size: 22px; letter-spacing: -.5px; text-align: center; }
 .modal-subtitle { margin: -8px 0 7px; color: #9b9cab; font-size: 12px; text-align: center; line-height: 1.5; }
+.modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 4px; }
+.modal-actions .primary-button { margin: 0; }
+.secondary-button, .danger-button { min-height: 40px; border: 0; border-radius: 8px; padding: 9px 13px; color: #dbdee1; background: #3f4147; font-size: 12px; font-weight: 700; }
+.secondary-button:hover { background: #4a4d54; }
+.danger-button { color: #fff; background: #da373c; }
+.danger-button:hover { background: #b92e33; }
 .modal-brand { display: grid; place-items: center; margin-bottom: 2px; }
 
 .modal-brand .brand-glyph {
