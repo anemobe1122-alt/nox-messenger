@@ -41,6 +41,17 @@
 .dm-conversation { margin: 0; width: 100%; color: #f0eff7; }
 .dm-conversation.dm-chat { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 23px 20px; }
 .dm-conversation.dm-chat .message-row { width: 100%; margin: 8px 0; }
+.dm-server-invite-card { width: min(360px, 100%); overflow: hidden; border: 1px solid #3f4147; border-radius: 14px; background: #18191c; box-shadow: 0 8px 28px #0004; }
+.dm-server-invite-cover { height: 100px; display: flex; align-items: flex-end; padding: 0 16px; background: radial-gradient(circle at 75% 15%, #8272ee77, transparent 32%), linear-gradient(135deg, #3b355f, #18191c 78%); }
+.dm-server-invite-cover span { width: 58px; height: 58px; transform: translateY(27px); display: grid; place-items: center; border: 4px solid #18191c; border-radius: 17px; color: #f4f0ff; background: linear-gradient(145deg,#a99cff,#7766e9); font-size: 21px; font-weight: 800; }
+.dm-server-invite-content { padding: 34px 16px 15px; display: flex; flex-direction: column; gap: 7px; }
+.dm-server-invite-content > small { color: #a9a2d1; font-size: 9px; font-weight: 800; letter-spacing: .8px; }
+.dm-server-invite-content > strong { color: #f2f3f5; font-size: 17px; }
+.dm-server-invite-stats { display: flex; align-items: center; gap: 7px; color: #aeb0b6; font-size: 11px; }
+.dm-server-invite-stats i { width: 8px; height: 8px; border-radius: 50%; background: #3ba55d; }
+.dm-server-invite-content > button { min-height: 40px; margin-top: 7px; border: 0; border-radius: 8px; color: #fff; background: #168b52; font-weight: 750; }
+.dm-server-invite-content > button:hover:not(:disabled) { background: #137746; }
+.dm-server-invite-content > button:disabled { cursor: wait; opacity: .7; }
 .dm-conversation-avatar { width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(145deg,#a99cff,#7766e9); color: #171523; font-size: 44px; font-weight: 800; }
 .dm-conversation h1 { margin: 18px 0 5px; font-size: 25px; }
 .dm-conversation p { margin: 0; color: #a4a5b1; font-size: 13px; }

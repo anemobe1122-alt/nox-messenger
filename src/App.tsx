@@ -14,7 +14,7 @@ type DmContact = Profile & { conversationId?: string };
 type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
 type Channel = { id: string; server_id: string; name: string; type?: string; slowmode_seconds?: number };
-type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile };
+type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile; message_type?: "text" | "server_invite"; metadata?: Record<string, any> | null };
 
 function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
@@ -72,6 +72,7 @@ export default function App() {
   const [serverNameDraft, setServerNameDraft] = useState("");
   const [serverInviteOpen, setServerInviteOpen] = useState(false);
   const [invitingFriendId, setInvitingFriendId] = useState("");
+  const [acceptingInviteId, setAcceptingInviteId] = useState("");
   const [deleteServerOpen, setDeleteServerOpen] = useState(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = useState(false);
   const [deleteChannelOpen, setDeleteChannelOpen] = useState(false);
@@ -197,7 +198,7 @@ export default function App() {
   async function inviteFriendToServer(friend: FriendRelation) {
     if (!supabase || !user || !activeSpace || !canInviteFriends) return;
     setInvitingFriendId(friend.id);
-    const { data, error } = await supabase.rpc("invite_friend_to_server", {
+    const { data, error } = await supabase.rpc("send_server_invite", {
       target_server_id: activeSpace.id,
       target_user_id: friend.id
     });
@@ -206,9 +207,42 @@ export default function App() {
       showNotice(`Не удалось пригласить. Примени supabase/nox-upgrade.sql: ${error.message}`);
       return;
     }
-    if (!data) { showNotice(`${friend.display_name || friend.username} уже участвует в сервере.`); return; }
-    setMembers((old) => old.some((member) => member.id === friend.id) ? old : [...old, friend]);
-    showNotice(`${friend.display_name || friend.username} приглашён в «${activeSpace.name}».`);
+    if (!data?.conversation_id) { showNotice("Не удалось создать личный чат для приглашения."); return; }
+    const contact = { ...friend, conversationId: data.conversation_id } as DmContact;
+    setDmContacts((old) => [contact, ...old.filter((item) => item.id !== friend.id)]);
+    setActiveDm(friend.id);
+    setActiveView("home");
+    setActiveHomeTab("Сообщения");
+    setSidebarOpen(false);
+    setServerInviteOpen(false);
+    setServerSettingsOpen(false);
+    showNotice(`Приглашение в «${activeSpace.name}» отправлено в личку.`);
+  }
+
+  async function openServerFromInvite(message: Message) {
+    const invitation = message.metadata;
+    if (!supabase || !user || !invitation?.invite_id) return;
+    const alreadyMember = spaces.some((space) => space.id === invitation.server_id);
+    setAcceptingInviteId(invitation.invite_id);
+    let serverId = invitation.server_id as string;
+    if (!alreadyMember) {
+      const { data, error } = await supabase.rpc("accept_server_invite", { target_invite_id: invitation.invite_id });
+      if (error || !data) {
+        setAcceptingInviteId("");
+        showNotice(error?.message || "Не удалось принять приглашение.");
+        return;
+      }
+      serverId = data as string;
+      await loadSpaces(user.id);
+    }
+    const { data: firstChannel } = await supabase.from("channels").select("id").eq("server_id", serverId).order("created_at").limit(1).maybeSingle();
+    setAcceptingInviteId("");
+    setActiveDm("");
+    setActiveView("server");
+    setActiveSpaceId(serverId);
+    setActiveChannelId(firstChannel?.id || "");
+    setSidebarOpen(false);
+    showNotice(`Открыт сервер «${invitation.server_name || "сервер"}».`);
   }
 
   async function deleteActiveServer() {
@@ -340,6 +374,16 @@ export default function App() {
   }, [user, loadSpaces, showNotice]);
 
   useEffect(() => {
+    if (!supabase || !user) return;
+    const channel = supabase.channel(`new-direct-chats:${user.id}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "direct_conversation_members", filter: `user_id=eq.${user.id}`
+      }, async () => { await loadDirectContacts(user.id); })
+      .subscribe();
+    return () => { void supabase!.removeChannel(channel); };
+  }, [user, loadDirectContacts]);
+
+  useEffect(() => {
     if (user) void loadFriendRelations(user.id);
     else setFriendRelations([]);
   }, [user, loadFriendRelations]);
@@ -394,7 +438,7 @@ export default function App() {
     const conversationId = activeDmContact.conversationId;
     (async () => {
       const { data, error } = await supabase!.from("direct_messages")
-        .select("id, conversation_id, user_id, content, created_at, profiles(id, username, display_name, avatar_url, presence_status)")
+        .select("id, conversation_id, user_id, content, message_type, metadata, created_at, profiles(id, username, display_name, avatar_url, presence_status)")
         .eq("conversation_id", conversationId).order("created_at", { ascending: true }).limit(200);
       if (cancelled) return;
       if (error) { showNotice("Не удалось загрузить сообщения. Примени обновлённую Supabase-схему."); return; }
@@ -1015,7 +1059,17 @@ export default function App() {
                   <div className="message-meta"><strong>{sender}</strong><time>{timeLabel(m.created_at)}</time>
                     {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(m, true)}><Trash2 size={15}/></button>}
                   </div>
-                  <p>{m.content}</p>
+                  {m.message_type === "server_invite" && m.metadata?.server_id ? <div className="dm-server-invite-card">
+                    <div className="dm-server-invite-cover"><span>{initials(m.metadata.server_name || "N")}</span></div>
+                    <div className="dm-server-invite-content">
+                      <small>ПРИГЛАШЕНИЕ НА СЕРВЕР</small>
+                      <strong>{m.metadata.server_name || "Сервер Nox"}</strong>
+                      <span className="dm-server-invite-stats"><i/> {Number(m.metadata.member_count || 1).toLocaleString("ru-RU")} участников</span>
+                      <button type="button" disabled={acceptingInviteId === m.metadata.invite_id} onClick={() => void openServerFromInvite(m)}>
+                        {acceptingInviteId === m.metadata.invite_id ? "Подключаем…" : "Перейти на сервер"}
+                      </button>
+                    </div>
+                  </div> : <p>{m.content}</p>}
                 </div>
               </article>;
             })}
