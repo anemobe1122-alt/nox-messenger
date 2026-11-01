@@ -157,6 +157,7 @@ grant execute on function public.create_or_get_direct_conversation(uuid) to auth
 grant select on public.direct_conversations, public.direct_conversation_members, public.direct_messages to authenticated;
 grant insert, delete on public.direct_messages to authenticated;
 grant delete on public.messages to authenticated;
+grant update (avatar_url) on public.profiles to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.servers enable row level security;

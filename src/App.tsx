@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import "./home.css";
 import {
   Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users,
   ChevronDown, Headphones, Mic, Bell, LogOut, X, LoaderCircle, ShieldCheck,
-  Sparkles, Menu, UserRound, Store, MessageSquare, CirclePlus, Trash2
+  Sparkles, UserRound, Store, MessageSquare, CirclePlus, Trash2, UserPlus, UserCheck, ImagePlus
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null };
 type DmContact = Profile & { conversationId?: string };
+type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
 type Channel = { id: string; server_id: string; name: string; type?: string };
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile };
@@ -50,6 +51,11 @@ const demoContacts: DmContact[] = [
 function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
 }
+function ProfileAvatar({ profile, name, className }: { profile?: Profile | null; name: string; className: string }) {
+  return profile?.avatar_url
+    ? <img className={`${className} profile-avatar-image`} src={profile.avatar_url} alt={`${name} — аватар`} />
+    : <div className={className}>{initials(name)}</div>;
+}
 function timeLabel(value: string) {
   return new Date(value).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
@@ -57,6 +63,9 @@ function timeLabel(value: string) {
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [friendRelations, setFriendRelations] = useState<FriendRelation[]>([]);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [spaces, setSpaces] = useState<Space[]>(demoSpaces);
   const [channelsBySpace, setChannelsBySpace] = useState<Record<string, Channel[]>>(demoChannels);
   const [activeSpaceId, setActiveSpaceId] = useState("demo-lobby");
@@ -153,6 +162,30 @@ export default function App() {
     setDmContacts(next);
   }, [showNotice]);
 
+  const loadFriendRelations = useCallback(async (uid: string) => {
+    if (!supabase) return;
+    const { data: relations, error } = await supabase.from("friend_requests")
+      .select("id, requester_id, addressee_id, status")
+      .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`)
+      .order("created_at", { ascending: false });
+    if (error) {
+      showNotice("Не удалось загрузить друзей. Примени supabase/friends-and-avatars.sql.");
+      return;
+    }
+    const rows = relations || [];
+    const personIds = [...new Set(rows.map((row: any) => row.requester_id === uid ? row.addressee_id : row.requester_id))];
+    if (!personIds.length) { setFriendRelations([]); return; }
+    const { data: people, error: peopleError } = await supabase.from("profiles")
+      .select("id, username, display_name, avatar_url").in("id", personIds);
+    if (peopleError) { showNotice("Не удалось загрузить профили друзей."); return; }
+    const profilesById = new Map((people || []).map((person: any) => [person.id, person as Profile]));
+    setFriendRelations(rows.flatMap((row: any) => {
+      const personId = row.requester_id === uid ? row.addressee_id : row.requester_id;
+      const person = profilesById.get(personId);
+      return person ? [{ ...person, requestId: row.id, requesterId: row.requester_id, addresseeId: row.addressee_id, status: row.status } as FriendRelation] : [];
+    }));
+  }, [showNotice]);
+
   const loadSpaces = useCallback(async (uid: string) => {
     if (!supabase) return;
     const { data: memberships, error } = await supabase.from("server_members").select("server_id").eq("user_id", uid);
@@ -225,6 +258,11 @@ export default function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, [loadProfile, loadSpaces, loadDirectContacts]);
+
+  useEffect(() => {
+    if (user) void loadFriendRelations(user.id);
+    else setFriendRelations([]);
+  }, [user, loadFriendRelations]);
 
   useEffect(() => { loadMessages(activeChannelId); }, [activeChannelId, loadMessages]);
 
@@ -402,6 +440,79 @@ export default function App() {
     setActiveDm(person.id); setActiveView("home"); setActiveHomeTab("Сообщения"); setSearchOpen(false); setSidebarOpen(false);
   }
 
+  async function addFriend(person: Profile) {
+    if (!supabase || !user) {
+      setAuthMode("signin"); setShowAuth(true);
+      showNotice("Войди в аккаунт, чтобы добавлять друзей.");
+      return;
+    }
+    const { data, error } = await supabase.rpc("send_friend_request", { target_user_id: person.id });
+    if (error) {
+      showNotice(`Не удалось добавить в друзья. Примени supabase/friends-and-avatars.sql. ${error.message}`);
+      return;
+    }
+    const result = data as string;
+    showNotice(result === "already_friends" ? "Вы уже друзья." : result === "accepted" ? "Заявка встречная — теперь вы друзья!" : "Заявка в друзья отправлена.");
+    await loadFriendRelations(user.id);
+  }
+
+  async function respondToFriendRequest(relation: FriendRelation, accept: boolean) {
+    if (!supabase || !user) return;
+    const { data, error } = await supabase.rpc("respond_to_friend_request", {
+      target_request_id: relation.requestId,
+      should_accept: accept
+    });
+    if (error || !data) {
+      showNotice(error?.message || "Заявка уже обработана.");
+      return;
+    }
+    showNotice(accept ? `Теперь вы с ${relation.display_name || relation.username} друзья.` : "Заявка отклонена.");
+    await loadFriendRelations(user.id);
+  }
+
+  async function uploadAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!supabase || !user) {
+      setAuthMode("signin"); setShowAuth(true);
+      showNotice("Войди в аккаунт, чтобы установить общий аватар.");
+      return;
+    }
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024) {
+      showNotice("Выбери JPG, PNG, WebP или GIF размером до 5 МБ.");
+      return;
+    }
+    const extension = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+    const path = `${user.id}/avatar.${extension}`;
+    setAvatarBusy(true);
+    try {
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, {
+        upsert: true, contentType: file.type, cacheControl: "3600"
+      });
+      if (uploadError) throw uploadError;
+      const publicUrl = `${supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
+      const { data, error } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", user.id).select("*").single();
+      if (error) throw error;
+      setProfile(data as Profile);
+      await Promise.all([loadDirectContacts(user.id), loadFriendRelations(user.id)]);
+      showNotice("Аватар обновлён — его увидят остальные.");
+    } catch (error: any) {
+      showNotice(`Не удалось загрузить аватар. Примени supabase/friends-and-avatars.sql. ${error?.message || ""}`);
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  function openAvatarPicker() {
+    if (!supabase || !user) {
+      setAuthMode("signin"); setShowAuth(true);
+      return;
+    }
+    if (!avatarBusy) avatarInputRef.current?.click();
+  }
+
   async function sendDm(e: FormEvent) {
     e.preventDefault();
     const content = dmDraft.trim();
@@ -541,6 +652,9 @@ export default function App() {
     return all.filter((m, i) => all.findIndex((x) => x.id === m.id) === i && m.content.toLocaleLowerCase().includes(q)).slice(0, 20);
   }, [messages, searchQuery]);
   const currentName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "Гость";
+  const acceptedFriends = friendRelations.filter((relation) => relation.status === "accepted");
+  const incomingFriendRequests = friendRelations.filter((relation) => relation.status === "pending" && relation.addresseeId === user?.id);
+  const outgoingFriendRequests = friendRelations.filter((relation) => relation.status === "pending" && relation.requesterId === user?.id);
   const homeActionLabel = activeHomeTab === "Друзья"
     ? "Найти друзей"
     : ["Сообщения", "Найти беседу", "Новая беседа"].includes(activeHomeTab)
@@ -550,33 +664,51 @@ export default function App() {
   return (
     <div className={`app-shell ${activeView === "home" ? "home-shell" : ""} ${!membersOpen ? "members-hidden" : ""}`}>
       <aside className={`server-rail ${sidebarOpen ? "rail-open" : ""}`}>
-        <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""}`} title="Главная" onClick={() => { setActiveView("home"); setActiveHomeTab("Сообщения"); setActiveDm(""); setSidebarOpen(false); }}>
+        <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""}`} title={activeView === "home" ? "Открыть навигацию" : "Главная"} onClick={() => {
+          if (window.matchMedia("(max-width: 760px)").matches && activeView === "home") { setSidebarOpen((open) => !open); return; }
+          setActiveView("home"); setActiveHomeTab("Сообщения"); setActiveDm("");
+          setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
+        }}>
           <span className="brand-glyph">n</span>
         </button>
         <div className="rail-separator" />
         {spaces.map((space) => (
-          <button key={space.id} className={`server-icon ${activeView === "server" && activeSpaceId === space.id ? "selected" : ""}`} title={space.name} onClick={() => { setActiveView("server"); chooseSpace(space); }}>
+          <button key={space.id} className={`server-icon ${activeView === "server" && activeSpaceId === space.id ? "selected" : ""}`} title={space.name} onClick={() => {
+            const isCurrentSpace = activeView === "server" && activeSpaceId === space.id;
+            const isMobile = window.matchMedia("(max-width: 760px)").matches;
+            if (isCurrentSpace && isMobile) setSidebarOpen((open) => !open);
+            else {
+              setActiveView("server"); chooseSpace(space);
+              if (isMobile) setSidebarOpen(true);
+            }
+          }}>
             <span>{initials(space.name)}</span>
             <i />
           </button>
         ))}
         <button className="server-icon add-server" title="Создать сервер" onClick={() => setCreateSpaceOpen(true)}><Plus size={22} /></button>
         <button className="server-icon explore" title="Обзор сообществ" onClick={() => showNotice("Обзор сообществ: здесь появятся открытые серверы.")}><Compass size={20} /></button>
-        <div className="rail-bottom"><button className="tiny-icon" title="Настройки профиля" onClick={() => showNotice(`Ты вошёл как ${currentName}. ${user ? "Настройки аккаунта доступны после подключения Supabase." : "Демо-режим сохраняет данные в этом браузере."}`)}><Settings size={19} /></button></div>
+        <div className="rail-bottom">
+          <button type="button" className="rail-avatar-picker" title={avatarBusy ? "Загрузка аватара…" : "Сменить аватар"} onClick={openAvatarPicker}>
+            <ProfileAvatar profile={profile} name={currentName} className="avatar rail-avatar" />
+            <ImagePlus size={13} />
+          </button>
+          <button className="tiny-icon" title="Настройки профиля" onClick={() => showNotice(`Ты вошёл как ${currentName}. ${user ? "Нажми на аватар, чтобы заменить его." : "Войди, чтобы настроить профиль."}`)}><Settings size={19} /></button>
+        </div>
       </aside>
 
       {activeView === "home" ? <aside className={`channel-sidebar home-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
         <button className="home-search" onClick={() => setSearchOpen(true)}><Search size={17}/><span>Найти или начать беседу</span></button>
         <nav className="home-nav">
-          {[{label:"Друзья", icon:<UserRound size={19}/>},{label:"Nitro", icon:<Sparkles size={19}/>},{label:"Магазин", icon:<Store size={19}/>}].map((item) => <button key={item.label} className={`home-nav-item ${activeHomeTab === item.label ? "active" : ""}`} onClick={() => { setActiveHomeTab(item.label); setActiveDm(""); }}>{item.icon}<span>{item.label}</span>{item.label === "Nitro" && <small>ПРЕДЛОЖЕНИЕ</small>}</button>)}
+          {[{label:"Друзья", icon:<UserRound size={19}/>},{label:"Nitro", icon:<Sparkles size={19}/>},{label:"Магазин", icon:<Store size={19}/>}].map((item) => <button key={item.label} className={`home-nav-item ${activeHomeTab === item.label ? "active" : ""}`} onClick={() => { setActiveHomeTab(item.label); setActiveDm(""); setSidebarOpen(false); if (item.label === "Друзья" && user) void loadFriendRelations(user.id); }}>{item.icon}<span>{item.label}</span>{item.label === "Nitro" ? <small>ПРЕДЛОЖЕНИЕ</small> : item.label === "Друзья" && incomingFriendRequests.length > 0 ? <small>{incomingFriendRequests.length}</small> : null}</button>)}
         </nav>
         <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setSearchOpen(true)}><Plus size={18}/></button></div>
         <div className="dm-list">
-          {dmContacts.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className={`dm-item ${activeDm === person.id ? "active" : ""}`} onClick={() => { setActiveDm(person.id); setActiveHomeTab("Сообщения"); }}><span className="dm-avatar">{initials(name)}</span><span className="dm-name">{name}</span><i/></button>; })}
+          {dmContacts.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className={`dm-item ${activeDm === person.id ? "active" : ""}`} onClick={() => { setActiveDm(person.id); setActiveHomeTab("Сообщения"); setSidebarOpen(false); }}><ProfileAvatar profile={person} name={name} className="dm-avatar" /><span className="dm-name">{name}</span><i/></button>; })}
           {!dmContacts.length && <p className="empty-small">Пока нет личных чатов.</p>}
         </div>
         <div className="profile-bar">
-          <div className="avatar self-avatar">{initials(currentName)}</div><div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
+          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={profile} name={currentName} className="avatar self-avatar" /></button><div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>{user ? <LogOut size={17}/> : <Settings size={17}/>}</button>
           <button className={`profile-action ${muted ? "control-active" : ""}`} title={muted ? "Включить микрофон" : "Выключить микрофон"} onClick={() => { setMuted(!muted); showNotice(muted ? "Микрофон включён" : "Микрофон выключен"); }}><Mic size={17}/></button><button className={`profile-action ${deafened ? "control-active" : ""}`} title={deafened ? "Включить звук" : "Выключить звук"} onClick={() => { setDeafened(!deafened); showNotice(deafened ? "Звук включён" : "Звук выключен"); }}><Headphones size={17}/></button>
         </div>
@@ -600,7 +732,7 @@ export default function App() {
           </div>
         </div>
         <div className="profile-bar">
-          <div className="avatar self-avatar">{initials(currentName)}</div>
+          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={profile} name={currentName} className="avatar self-avatar" /></button>
           <div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>
             {user ? <LogOut size={17}/> : <Settings size={17}/>}
@@ -611,17 +743,17 @@ export default function App() {
       </aside>}
 
       {activeView === "home" ? <main className="chat-area home-area">
-        <header className="chat-header home-header"><button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button><strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
+        <header className="chat-header home-header"><strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
         {activeDm ? <>
           <div className="dm-conversation dm-chat">
-            <div className="dm-conversation-avatar">{initials(activeDmContact?.display_name || activeDmContact?.username || "N")}</div>
+            <ProfileAvatar profile={activeDmContact} name={activeDmContact?.display_name || activeDmContact?.username || "N"} className="dm-conversation-avatar" />
             <h1>{activeDmContact?.display_name || activeDmContact?.username || "Личные сообщения"}</h1>
             <p>Начало вашей переписки.</p>
             {(dmMessages[activeDmKey] || []).map((m) => {
               const isOwn = m.user_id === user?.id || m.user_id === "you";
               const sender = isOwn ? currentName : (m.profile?.display_name || m.profile?.username || activeDmContact?.display_name || "Пользователь");
               return <article className="message-row" key={m.id}>
-                <div className={`avatar message-avatar ${isOwn ? "own" : ""}`}>{initials(sender)}</div>
+                <ProfileAvatar profile={isOwn ? profile : m.profile} name={sender} className={`avatar message-avatar ${isOwn ? "own" : ""}`} />
                 <div className="message-body">
                   <div className="message-meta"><strong>{sender}</strong><time>{timeLabel(m.created_at)}</time>
                     {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(m, true)}><Trash2 size={15}/></button>}
@@ -634,11 +766,39 @@ export default function App() {
           <div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div>
         </> : <div className="home-content">
           <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Сообщения" || activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Начни личную беседу или продолжи общение." : activeHomeTab === "Nitro" ? "Дополнительные возможности появятся позже." : activeHomeTab === "Магазин" ? "Магазин оформления появится позже." : "Общайся, открывай сообщества и оставайся на связи."}</p>{homeActionLabel && <button onClick={() => setSearchOpen(true)}><UserRound size={17}/> {homeActionLabel}</button>}</div>
-          <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => { if (dmContacts[0]) setActiveDm(dmContacts[0].id); else setSearchOpen(true); }}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { if (spaces[0]) { setActiveView("server"); chooseSpace(spaces[0]); } else setCreateSpaceOpen(true); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
+          {activeHomeTab === "Друзья" ? <div className="friend-sections">
+            {!user && <p className="friend-empty">Войди в аккаунт, чтобы добавлять друзей и видеть заявки.</p>}
+            {incomingFriendRequests.length > 0 && <section className="friend-section">
+              <h2>Заявки в друзья <span>{incomingFriendRequests.length}</span></h2>
+              {incomingFriendRequests.map((person) => <div className="friend-row" key={person.requestId}>
+                <ProfileAvatar profile={person} name={person.display_name || person.username} className="dm-avatar" />
+                <div className="person-result-copy"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></div>
+                <button className="friend-action accept" title="Принять заявку" onClick={() => void respondToFriendRequest(person, true)}><UserCheck size={17}/></button>
+                <button className="friend-action decline" title="Отклонить заявку" onClick={() => void respondToFriendRequest(person, false)}><X size={17}/></button>
+              </div>)}
+            </section>}
+            {outgoingFriendRequests.length > 0 && <section className="friend-section">
+              <h2>Ожидают ответа <span>{outgoingFriendRequests.length}</span></h2>
+              {outgoingFriendRequests.map((person) => <div className="friend-row" key={person.requestId}>
+                <ProfileAvatar profile={person} name={person.display_name || person.username} className="dm-avatar" />
+                <div className="person-result-copy"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></div>
+                <span className="friend-pending-label">Ожидает</span>
+              </div>)}
+            </section>}
+            <section className="friend-section">
+              <h2>Друзья <span>{acceptedFriends.length}</span></h2>
+              {acceptedFriends.length ? acceptedFriends.map((person) => <div className="friend-row" key={person.requestId}>
+                <ProfileAvatar profile={person} name={person.display_name || person.username} className="dm-avatar" />
+                <div className="person-result-copy"><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></div>
+                <button className="friend-message-button" onClick={() => void openDirectChat(person)}>Написать</button>
+              </div>) : <p className="friend-empty">Пока нет друзей. Найди человека и отправь заявку.</p>}
+            </section>
+          </div> : <>
+            <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => { if (dmContacts[0]) setActiveDm(dmContacts[0].id); else setSearchOpen(true); }}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { if (spaces[0]) { setActiveView("server"); chooseSpace(spaces[0]); } else setCreateSpaceOpen(true); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
+          </>}
         </div>}
       </main> : <main className="chat-area">
         <header className="chat-header">
-          <button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button>
           <Hash size={22} className="header-hash"/>
           <strong>{activeChannel?.name || "выбери-канал"}</strong>
           <div className="header-divider"/>
@@ -670,7 +830,7 @@ export default function App() {
             const isOwn = message.user_id === user?.id || message.user_id === "you";
             return (
               <article className="message-row" key={message.id}>
-                <div className={`avatar message-avatar ${isOwn ? "own" : ""}`}>{initials(name)}</div>
+                <ProfileAvatar profile={isOwn ? profile : message.profile} name={name} className={`avatar message-avatar ${isOwn ? "own" : ""}`} />
                 <div className="message-body">
                   <div className="message-meta"><strong>{name}</strong><time>{timeLabel(message.created_at)}</time>
                     {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(message, false)}><Trash2 size={15}/></button>}
@@ -697,7 +857,7 @@ export default function App() {
         <div className="member-heading">УЧАСТНИКИ — {user ? members.length : "—"}</div>
         {user && members.length ? members.map((person) => (
           <div className="member-row" key={person.id}>
-            <div className="avatar member-avatar">{initials(person.display_name || person.username)}</div>
+            <ProfileAvatar profile={person} name={person.display_name || person.username} className="avatar member-avatar" />
             <span>{person.display_name || person.username}</span><i className="online-dot"/>
           </div>
         )) : (
@@ -712,9 +872,40 @@ export default function App() {
       </aside>}
 
       {searchOpen && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setSearchOpen(false); }}>
-        <div className="modal search-modal"><button type="button" className="modal-close" onClick={() => setSearchOpen(false)}><X size={19}/></button><h2>Поиск пользователей</h2><label>Ник или отображаемое имя<input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Например, player123"/></label><div className="search-results"><strong className="search-label">ЗАРЕГИСТРИРОВАННЫЕ ПОЛЬЗОВАТЕЛИ</strong>{!user && <div className="search-empty"><p>Войди в аккаунт, чтобы искать людей и переписываться с ними.</p><button className="primary-button" onClick={() => { setSearchOpen(false); setAuthMode("signin"); setShowAuth(true); }}>Войти в аккаунт</button></div>}{user && searchQuery.trim().length < 2 && <p className="empty-small">Введи хотя бы 2 символа для поиска.</p>}{user && peopleLoading && <p className="empty-small">Ищу пользователей…</p>}{user && searchQuery.trim().length >= 2 && !peopleLoading && !peopleResults.length && <p className="empty-small">Никого не нашёл. Проверь написание.</p>}{user && peopleResults.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className="search-result contact-result" onClick={() => void openDirectChat(person)}><span className="dm-avatar">{initials(name)}</span><span className="person-result-copy"><strong>{name}</strong><small>@{person.username}</small></span><span className="person-message-action">Написать</span></button>; })}<strong className="search-label">ПОИСК ПО СООБЩЕНИЯМ</strong>{searchResults.map((m) => <button key={`${m.channel_id}-${m.id}`} className="search-result" onClick={() => { const target = spaces.flatMap((s) => channelsBySpace[s.id] || []).find((c) => c.id === m.channel_id); if (target) { setActiveView("server"); setActiveSpaceId(target.server_id); setActiveChannelId(target.id); } else showNotice(`Сообщение из канала #${m.channel_id.replace(/^demo-/, "")}`); setSearchOpen(false); }}><strong>#{(channels.find((c) => c.id === m.channel_id)?.name || m.channel_id.replace(/^demo-/, ""))}</strong><span>{m.content}</span></button>)}</div></div>
+        <div className="modal search-modal">
+          <button type="button" className="modal-close" onClick={() => setSearchOpen(false)}><X size={19}/></button>
+          <h2>Поиск пользователей</h2>
+          <label>Ник или отображаемое имя<input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Например, player123"/></label>
+          <div className="search-results">
+            <strong className="search-label">ЗАРЕГИСТРИРОВАННЫЕ ПОЛЬЗОВАТЕЛИ</strong>
+            {!user && <div className="search-empty"><p>Войди в аккаунт, чтобы искать пользователей и отправлять заявки.</p><button className="primary-button" onClick={() => { setSearchOpen(false); setAuthMode("signin"); setShowAuth(true); }}>Войти в аккаунт</button></div>}
+            {user && searchQuery.trim().length < 2 && <p className="empty-small">Введи хотя бы 2 символа для поиска.</p>}
+            {user && peopleLoading && <p className="empty-small">Ищу пользователей…</p>}
+            {user && searchQuery.trim().length >= 2 && !peopleLoading && !peopleResults.length && <p className="empty-small">Никого не нашёл. Проверь написание.</p>}
+            {user && peopleResults.map((person) => {
+              const name = person.display_name || person.username;
+              const relation = friendRelations.find((item) => item.id === person.id);
+              const incoming = relation?.status === "pending" && relation.addresseeId === user.id;
+              const statusLabel = relation?.status === "accepted" ? "В друзьях" : incoming ? "Принять" : relation ? "Заявка отправлена" : "Добавить в друзья";
+              return <div key={person.id} className="search-result contact-result">
+                <ProfileAvatar profile={person} name={name} className="dm-avatar" />
+                <span className="person-result-copy"><strong>{name}</strong><small>@{person.username}</small></span>
+                <div className="search-result-actions">
+                  <button className="person-message-action" onClick={() => void openDirectChat(person)}>Написать</button>
+                  <button className={`friend-search-action ${relation?.status === "accepted" ? "is-friend" : ""}`} disabled={relation?.status === "accepted" || (!!relation && !incoming)} onClick={() => incoming && relation ? void respondToFriendRequest(relation, true) : void addFriend(person)}>
+                    {relation?.status === "accepted" ? <UserCheck size={15}/> : incoming ? <UserCheck size={15}/> : <UserPlus size={15}/>}
+                    {statusLabel}
+                  </button>
+                </div>
+              </div>;
+            })}
+            <strong className="search-label">ПОИСК ПО СООБЩЕНИЯМ</strong>
+            {searchResults.map((m) => <button key={`${m.channel_id}-${m.id}`} className="search-result" onClick={() => { const target = spaces.flatMap((s) => channelsBySpace[s.id] || []).find((c) => c.id === m.channel_id); if (target) { setActiveView("server"); setActiveSpaceId(target.server_id); setActiveChannelId(target.id); } else showNotice(`Сообщение из канала #${m.channel_id.replace(/^demo-/, "")}`); setSearchOpen(false); }}><strong>#{(channels.find((c) => c.id === m.channel_id)?.name || m.channel_id.replace(/^demo-/, ""))}</strong><span>{m.content}</span></button>)}
+          </div>
+        </div>
       </div>}
 
+      <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={uploadAvatar} />
       {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
 
       {showAuth && (

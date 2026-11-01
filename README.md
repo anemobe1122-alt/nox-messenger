@@ -11,6 +11,7 @@ Nox is a Discord-inspired dark web messenger starter built with React, TypeScrip
 - Message persistence and realtime inserts for channel messages
 - Search registered users by username or display name and start private conversations
 - Direct messages stored in Supabase with membership-based Row Level Security and realtime updates
+- Friend requests with accept/decline and shared profile avatars
 - PostgreSQL schema and Row Level Security (RLS) starter policies
 
 ## Important current limits
@@ -18,7 +19,7 @@ Nox is a Discord-inspired dark web messenger starter built with React, TypeScrip
 - Server invitations and joining other users' servers are not implemented yet.
 - The included SQL is a starter, not a complete security audit. Before public production use, add an invitation/join flow and review RLS carefully. The starter only allows a server owner to add their own initial membership; other users cannot join until an invitation/join flow is implemented.
 - Demo messages are local to the browser and are not shared.
-- No voice/video, file upload, message search, moderation, or push notifications yet.
+- No voice/video, chat attachments, moderation, or push notifications yet. Message search is limited to content already loaded in the browser.
 
 ## 1. Run locally
 
@@ -40,17 +41,19 @@ The app runs in demo mode until Supabase credentials are added.
 2. In the project dashboard, open **SQL Editor**.
 3. Copy and run the entire contents of `supabase/schema.sql`.
    - If the core schema is already installed, run `supabase/direct-messages.sql` instead to add private conversations without recreating the existing tables.
-4. Open **Project Settings → API** (or the project's API keys page) and copy the Project URL and publishable/anon key.
-5. Put those values in `.env.local`:
+4. Run `supabase/friends-and-avatars.sql` to enable friend requests and shared avatar uploads.
+   - Run `supabase/message-deletion.sql` too if you want users to delete their own messages.
+5. Open **Project Settings → API** (or the project's API keys page) and copy the Project URL and publishable/anon key.
+6. Put those values in `.env.local`:
 
 ```env
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY
 ```
 
-6. In **Authentication → URL Configuration**, add your local URL (for example `http://localhost:5173`) to the allowed redirect/site URLs. For production, add the GitHub Pages URL too.
-7. In **Authentication → Providers**, ensure Email is enabled. For quick testing, you can decide whether to require email confirmation in the Supabase Auth settings.
-8. Restart Vite after editing `.env.local`.
+7. In **Authentication → URL Configuration**, add your local URL (for example `http://localhost:5173`) to the allowed redirect/site URLs. For production, add the GitHub Pages URL too.
+8. In **Authentication → Providers**, ensure Email is enabled. For quick testing, you can decide whether to require email confirmation in the Supabase Auth settings.
+9. Restart Vite after editing `.env.local`.
 
 Never put a Supabase `service_role` key in a browser app or commit it to GitHub. The publishable/anon key is designed for browser use only when RLS policies are enabled and correct.
 

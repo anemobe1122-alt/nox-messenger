@@ -16,7 +16,7 @@
 .dm-name { flex: 1; font-size: 13px; }
 .dm-item i { width: 8px; height: 8px; border-radius: 50%; background: #55d6a0; }
 .home-area { background: #111216; }
-.home-content { width: min(760px, calc(100% - 48px)); margin: 52px auto; }
+.home-content { flex: 1; min-height: 0; overflow-y: auto; width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 52px 0; }
 .home-welcome { padding: 30px; border: 1px solid #30313c; border-radius: 15px; background: radial-gradient(ellipse at 90% 0%, #7163c62b, transparent 48%), #191a21; }
 .home-welcome-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: #c3baff; background: #8c7cf033; margin-bottom: 20px; }
 .home-welcome > span, .home-section-title { color: #9697a5; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
