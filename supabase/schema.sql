@@ -291,3 +291,5 @@ begin
 exception when undefined_object then
   raise notice 'Publication supabase_realtime was not found; enable Realtime for public.direct_messages in Supabase Dashboard.';
 end $$;
+
+notify pgrst, 'reload schema';

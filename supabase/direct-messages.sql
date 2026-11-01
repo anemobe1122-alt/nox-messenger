@@ -106,3 +106,6 @@ begin
 exception when undefined_object then
   raise notice 'Enable Realtime for public.direct_messages in Supabase Dashboard.';
 end $$;
+
+-- Refresh PostgREST's function and table schema cache after applying this migration.
+notify pgrst, 'reload schema';

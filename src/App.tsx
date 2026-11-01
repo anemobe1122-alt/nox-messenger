@@ -379,7 +379,12 @@ export default function App() {
     let conversationId = dmContacts.find((contact) => contact.id === person.id)?.conversationId;
     if (!conversationId) {
       const { data, error } = await supabase.rpc("create_or_get_direct_conversation", { target_user_id: person.id });
-      if (error || !data) { showNotice("Не удалось открыть чат. Обнови Supabase-схему из файла supabase/schema.sql."); return; }
+      if (error || !data) {
+        console.error("Failed to open direct chat:", error);
+        const reason = error?.message ? ` ${error.message}` : " Функция создания чата не вернула результат.";
+        showNotice(`Не удалось открыть чат.${reason} Примени supabase/direct-messages.sql в SQL Editor Supabase.`);
+        return;
+      }
       conversationId = data as string;
     }
     const contact = { ...person, conversationId } as DmContact;
