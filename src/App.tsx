@@ -1043,10 +1043,6 @@ export default function App() {
         <button className="server-icon add-server" title="Создать сервер" onClick={() => setCreateSpaceOpen(true)}><Plus size={22} /></button>
         <button className="server-icon explore" title="Обзор сообществ" onClick={() => showNotice("Обзор сообществ: здесь появятся открытые серверы.")}><Compass size={20} /></button>
         <div className="rail-bottom">
-          <button type="button" className="rail-avatar-picker" title="Открыть профиль" onClick={openProfilePopover}>
-            <ProfileAvatar profile={profile} name={currentName} className="avatar rail-avatar" />
-            <ImagePlus size={13} />
-          </button>
           <button className="tiny-icon" title="Редактировать профиль" onClick={openProfileSettings}><Settings size={19} /></button>
         </div>
       </aside>

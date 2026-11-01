@@ -110,9 +110,6 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .add-server { color: var(--green); background: #252a2d; }
 .explore { color: #7edcb3; background: #252a2d; }
 .rail-bottom { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 7px; }
-.rail-avatar-picker { position: relative; width: 40px; height: 40px; padding: 3px; border: 0; border-radius: 50%; background: transparent; }
-.rail-avatar-picker > svg { position: absolute; right: 0; bottom: 0; padding: 2px; width: 17px; height: 17px; border-radius: 50%; color: #fff; background: #5865f2; }
-.rail-avatar { width: 34px; height: 34px; font-size: 10px; }
 .profile-avatar-button { flex: 0 0 auto; border: 0; padding: 0; border-radius: 50%; background: transparent; }
 .profile-avatar-button:hover { box-shadow: 0 0 0 2px #5865f2; }
 .profile-avatar-image { object-fit: cover; overflow: hidden; }
