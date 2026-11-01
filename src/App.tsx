@@ -16,39 +16,6 @@ type Space = { id: string; name: string; owner_id?: string; created_at?: string 
 type Channel = { id: string; server_id: string; name: string; type?: string; slowmode_seconds?: number };
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile };
 
-const demoSpaces: Space[] = [
-  { id: "demo-lobby", name: "Ночная смена" },
-  { id: "demo-gamedev", name: "Pixel Lab" },
-  { id: "demo-study", name: "Космическая кухня" }
-];
-const demoChannels: Record<string, Channel[]> = {
-  "demo-lobby": [
-    { id: "demo-general", server_id: "demo-lobby", name: "общий" },
-    { id: "demo-memes", server_id: "demo-lobby", name: "мемы" },
-    { id: "demo-ideas", server_id: "demo-lobby", name: "идеи" }
-  ],
-  "demo-gamedev": [
-    { id: "demo-dev-chat", server_id: "demo-gamedev", name: "dev-chat" },
-    { id: "demo-art", server_id: "demo-gamedev", name: "арт" }
-  ],
-  "demo-study": [
-    { id: "demo-coffee", server_id: "demo-study", name: "кофейня" },
-    { id: "demo-focus", server_id: "demo-study", name: "фокус-комната" }
-  ]
-};
-const demoMessages: Record<string, Message[]> = {
-  "demo-general": [
-    { id: "m1", channel_id: "demo-general", user_id: "bot-1", content: "Добро пожаловать в Nox 👋", created_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(), profile: { id: "bot-1", username: "nox", display_name: "Nox" } },
-    { id: "m2", channel_id: "demo-general", user_id: "bot-2", content: "Это демо-интерфейс. Подключи Supabase, чтобы включить настоящие аккаунты и сообщения.", created_at: new Date(Date.now() - 1000 * 60 * 17).toISOString(), profile: { id: "bot-2", username: "guide", display_name: "Проводник" } },
-    { id: "m3", channel_id: "demo-general", user_id: "bot-3", content: "Слева можно переключать серверы и каналы. Попробуй отправить сообщение — оно появится в этой демо-сессии.", created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(), profile: { id: "bot-3", username: "pixel", display_name: "pixel.exe" } }
-  ]
-};
-const demoContacts: DmContact[] = [
-  { id: "demo-nox", username: "nox", display_name: "Nox" },
-  { id: "demo-pixel", username: "pixel", display_name: "Pixel" },
-  { id: "demo-night", username: "nightshift", display_name: "Ночная смена" }
-];
-
 function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
 }
@@ -79,14 +46,14 @@ export default function App() {
   const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
   const [presence, setPresence] = useState<PresenceStatus>(() => (localStorage.getItem("nox-presence") as PresenceStatus) || "online");
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const [spaces, setSpaces] = useState<Space[]>(demoSpaces);
-  const [channelsBySpace, setChannelsBySpace] = useState<Record<string, Channel[]>>(demoChannels);
-  const [activeSpaceId, setActiveSpaceId] = useState("demo-lobby");
-  const [activeChannelId, setActiveChannelId] = useState("demo-general");
-  const [messages, setMessages] = useState<Message[]>(demoMessages["demo-general"] || []);
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [channelsBySpace, setChannelsBySpace] = useState<Record<string, Channel[]>>({});
+  const [activeSpaceId, setActiveSpaceId] = useState("");
+  const [activeChannelId, setActiveChannelId] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
   const [unreadChannels, setUnreadChannels] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState("");
-  const [showAuth, setShowAuth] = useState(false);
+  const [showAuth, setShowAuth] = useState(true);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -109,10 +76,10 @@ export default function App() {
   const [slowmodeUntil, setSlowmodeUntil] = useState<Record<string, number>>({});
   const [slowmodeRemaining, setSlowmodeRemaining] = useState(0);
   const [members, setMembers] = useState<Profile[]>([]);
-  const [activeView, setActiveView] = useState<"home" | "server">("server");
+  const [activeView, setActiveView] = useState<"home" | "server">("home");
   const [activeHomeTab, setActiveHomeTab] = useState("Сообщения");
   const [activeDm, setActiveDm] = useState("");
-  const [dmContacts, setDmContacts] = useState<DmContact[]>(demoContacts);
+  const [dmContacts, setDmContacts] = useState<DmContact[]>([]);
   const [peopleResults, setPeopleResults] = useState<Profile[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [dmDraft, setDmDraft] = useState("");
@@ -140,20 +107,6 @@ export default function App() {
     window.setTimeout(() => setNotice(""), 3500);
   }, []);
 
-  useEffect(() => {
-    try {
-      const savedSpaces = localStorage.getItem("nox-spaces");
-      const savedChannels = localStorage.getItem("nox-channels");
-      if (savedSpaces) setSpaces(JSON.parse(savedSpaces));
-      if (savedChannels) setChannelsBySpace(JSON.parse(savedChannels));
-    } catch { /* Ignore invalid local demo data. */ }
-  }, []);
-  useEffect(() => {
-    if (!supabase) {
-      localStorage.setItem("nox-spaces", JSON.stringify(spaces));
-      localStorage.setItem("nox-channels", JSON.stringify(channelsBySpace));
-    }
-  }, [spaces, channelsBySpace]);
   useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
 
   const loadProfile = useCallback(async (authUser: any) => {
@@ -272,7 +225,7 @@ export default function App() {
     if (!supabase || channelId.startsWith("demo-") || channelId.startsWith("local-")) {
       let saved: Message[] = [];
       try { saved = JSON.parse(localStorage.getItem(`nox-messages-${channelId}`) || "[]"); } catch { /* Ignore invalid local message data. */ }
-      setMessages(saved.length ? saved : demoMessages[channelId] || []);
+      setMessages(saved);
       return;
     }
     const { data, error } = await supabase.from("messages")
@@ -288,17 +241,29 @@ export default function App() {
       const current = data.session?.user || null;
       setUser(current);
       if (current) {
+        setShowAuth(false);
+        setActiveView("home");
         setActiveDm("");
         await loadProfile(current);
         await loadSpaces(current.id);
         await loadDirectContacts(current.id);
+      } else {
+        setShowAuth(true);
+        setSpaces([]); setChannelsBySpace({}); setActiveSpaceId(""); setActiveChannelId(""); setMessages([]);
+        setDmContacts([]); setActiveDm(""); setActiveView("home");
       }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       const current = session?.user || null;
       setUser(current);
-      if (!current) { setProfile(null); setSpaces(demoSpaces); setChannelsBySpace(demoChannels); setDmContacts(demoContacts); setActiveDm(""); }
+      if (!current) {
+        setProfile(null); setShowAuth(true); setAuthMode("signup");
+        setSpaces([]); setChannelsBySpace({}); setActiveSpaceId(""); setActiveChannelId(""); setMessages([]);
+        setDmContacts([]); setActiveDm(""); setActiveView("home");
+      }
       else {
+        setShowAuth(false);
+        setActiveView("home");
         setActiveDm("");
         window.setTimeout(async () => {
           await loadProfile(current);
@@ -549,8 +514,10 @@ export default function App() {
         const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword });
         if (error) throw error;
         setUser(data.user);
+        setActiveView("home");
         await loadProfile(data.user);
         await loadSpaces(data.user.id);
+        await loadDirectContacts(data.user.id);
         setShowAuth(false);
         showNotice("Ты снова в Nox.");
       }
@@ -561,9 +528,9 @@ export default function App() {
 
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
-    setUser(null); setProfile(null); setSpaces(demoSpaces); setChannelsBySpace(demoChannels);
-    setDmContacts(demoContacts); setActiveDm("");
-    setActiveSpaceId("demo-lobby"); setActiveChannelId("demo-general");
+    setUser(null); setProfile(null); setShowAuth(true); setAuthMode("signup");
+    setSpaces([]); setChannelsBySpace({}); setDmContacts([]); setActiveDm(""); setMessages([]);
+    setActiveSpaceId(""); setActiveChannelId(""); setActiveView("home");
     showNotice("Ты вышел из аккаунта.");
   }
 
@@ -858,10 +825,10 @@ export default function App() {
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLocaleLowerCase();
     if (!q) return [];
-    const all = [...Object.values(demoMessages).flat(), ...messages];
+    const all = [...messages];
     return all.filter((m, i) => all.findIndex((x) => x.id === m.id) === i && m.content.toLocaleLowerCase().includes(q)).slice(0, 20);
   }, [messages, searchQuery]);
-  const currentName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "Гость";
+  const currentName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "Профиль";
   const acceptedFriends = friendRelations.filter((relation) => relation.status === "accepted");
   const incomingFriendRequests = friendRelations.filter((relation) => relation.status === "pending" && relation.addresseeId === user?.id);
   const outgoingFriendRequests = friendRelations.filter((relation) => relation.status === "pending" && relation.requesterId === user?.id);
@@ -905,7 +872,7 @@ export default function App() {
             <ProfileAvatar profile={profile} name={currentName} className="avatar rail-avatar" />
             <ImagePlus size={13} />
           </button>
-          <button className="tiny-icon" title="Настройки профиля" onClick={() => showNotice(`Ты вошёл как ${currentName}. ${user ? "Нажми на аватар, чтобы заменить его." : "Войди, чтобы настроить профиль."}`)}><Settings size={19} /></button>
+          <button className="tiny-icon" title="Настройки профиля" onClick={() => showNotice(`Ты вошёл как ${currentName}. Нажми на аватар, чтобы заменить его.`)}><Settings size={19} /></button>
         </div>
       </aside>
 
@@ -920,7 +887,7 @@ export default function App() {
           {!dmContacts.length && <p className="empty-small">Пока нет личных чатов.</p>}
         </div>
         <div className="profile-bar">
-          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "guest", username: "guest", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button><div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{user ? presenceLabel(presence) : "Гостевой режим"}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
+          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button><div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>{user ? <LogOut size={17}/> : <Settings size={17}/>}</button>
           <button className={`profile-action ${muted ? "control-active" : ""}`} title={muted ? "Включить микрофон" : "Выключить микрофон"} onClick={() => { setMuted(!muted); showNotice(muted ? "Микрофон включён" : "Микрофон выключен"); }}><Mic size={17}/></button><button className={`profile-action ${deafened ? "control-active" : ""}`} title={deafened ? "Включить звук" : "Выключить звук"} onClick={() => { setDeafened(!deafened); showNotice(deafened ? "Звук включён" : "Звук выключен"); }}><Headphones size={17}/></button>
         </div>
@@ -948,8 +915,8 @@ export default function App() {
 
         </div>
         <div className="profile-bar">
-          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "guest", username: "guest", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
-          <div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{user ? presenceLabel(presence) : "Гостевой режим"}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
+          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
+          <div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>
             {user ? <LogOut size={17}/> : <Settings size={17}/>}
           </button>
@@ -1080,8 +1047,7 @@ export default function App() {
           <div className="member-empty">
             <div className="member-empty-icon"><Users size={22}/></div>
             <strong>Здесь пока тихо</strong>
-            <p>{user ? "Добавь друзей в своё сообщество." : "Войди в аккаунт, чтобы начать своё сообщество."}</p>
-            {!user && <button onClick={() => { setAuthMode("signup"); setShowAuth(true); }}>Создать аккаунт</button>}
+            <p>Добавь друзей в своё сообщество.</p>
           </div>
         )}
         <div className="right-tip"><span className="tip-spark">✦</span><strong>Маленький совет</strong><p>Создай отдельный канал для каждой темы — так разговоры будет проще находить.</p></div>
@@ -1157,10 +1123,10 @@ export default function App() {
         </div>
       </div>}
 
-      {showAuth && (
-        <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowAuth(false); }}>
+      {(showAuth || !user) && (
+        <div className={`modal-backdrop ${user ? "" : "auth-required"}`} onMouseDown={(e) => { if (user && e.target === e.currentTarget) setShowAuth(false); }}>
           <form className="modal auth-modal" onSubmit={submitAuth}>
-            <button type="button" className="modal-close" onClick={() => setShowAuth(false)}><X size={19}/></button>
+            {user && <button type="button" className="modal-close" onClick={() => setShowAuth(false)}><X size={19}/></button>}
             <div className="modal-brand"><span className="brand-glyph">n</span></div>
             <h2>{authMode === "signup" ? "Создай свой аккаунт" : "С возвращением"}</h2>
             <p className="modal-subtitle">{authMode === "signup" ? "Твои люди уже где-то здесь." : "Твои разговоры ждут тебя."}</p>
@@ -1172,7 +1138,7 @@ export default function App() {
               {authBusy ? <LoaderCircle className="spin" size={18}/> : null}
               {authMode === "signup" ? "Зарегистрироваться" : "Войти"}
             </button>
-            {!isSupabaseConfigured && <p className="auth-note">Сначала добавь ключи Supabase в файл .env.local. Инструкция есть в README.</p>}
+            {!isSupabaseConfigured && <p className="auth-note">Регистрация пока не подключена. Добавь параметры Supabase в настройки проекта, чтобы создать аккаунт.</p>}
             <p className="switch-auth">{authMode === "signup" ? "Уже есть аккаунт?" : "Впервые в Nox?"} <button type="button" onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthError(""); }}>{authMode === "signup" ? "Войти" : "Создать аккаунт"}</button></p>
           </form>
         </div>
@@ -1184,7 +1150,6 @@ export default function App() {
             <button type="button" className="modal-close" onClick={() => setCreateSpaceOpen(false)}><X size={19}/></button>
             <h2>Создать сервер</h2><p className="modal-subtitle">Собери людей вокруг того, что вам нравится.</p>
             <label>Название сервера<input required maxLength={60} value={newSpaceName} onChange={(e) => setNewSpaceName(e.target.value)} placeholder="Например, Наша компания"/></label>
-            {!user && <p className="auth-note">В демо-режиме сервер не сохранится. Для общего сервера настрой Supabase и войди.</p>}
             <button className="primary-button">Создать сервер</button>
           </form>
         </div>

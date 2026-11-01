@@ -526,6 +526,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   padding: 20px;
 }
 
+.modal-backdrop.auth-required { background: #111216; backdrop-filter: none; }
+
 .modal {
   width: min(100%, 420px);
   background: #24252e;
