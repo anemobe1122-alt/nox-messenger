@@ -84,6 +84,7 @@ export default function App() {
   const [activeSpaceId, setActiveSpaceId] = useState("demo-lobby");
   const [activeChannelId, setActiveChannelId] = useState("demo-general");
   const [messages, setMessages] = useState<Message[]>(demoMessages["demo-general"] || []);
+  const [unreadChannels, setUnreadChannels] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
@@ -479,6 +480,26 @@ export default function App() {
   }, [activeChannelId]);
 
   useEffect(() => {
+    if (!supabase || !user) return;
+    const tracked = Object.values(channelsBySpace).flat().filter((channel) =>
+      channel.id !== activeChannelId && !channel.id.startsWith("demo-") && !channel.id.startsWith("local-")
+    );
+    if (!tracked.length) return;
+    const subscription = supabase.channel(`unread-channels:${user.id}`);
+    tracked.forEach((channel) => {
+      subscription.on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "messages", filter: `channel_id=eq.${channel.id}`
+      }, (payload) => {
+        const row = payload.new as Message;
+        if (row.user_id === user.id) return;
+        setUnreadChannels((old) => ({ ...old, [channel.id]: (old[channel.id] || 0) + 1 }));
+      });
+    });
+    subscription.subscribe();
+    return () => { void supabase!.removeChannel(subscription); };
+  }, [channelsBySpace, activeChannelId, user]);
+
+  useEffect(() => {
     if (!supabase || !activeChannelId || activeChannelId.startsWith("demo-")) { setMembers([]); return; }
     let cancelled = false;
     (async () => {
@@ -505,6 +526,7 @@ export default function App() {
   const chooseChannel = (channel: Channel) => {
     setChannelMenuOpen(false);
     setChannelMenuFor("");
+    setUnreadChannels((old) => { if (!old[channel.id]) return old; const next = { ...old }; delete next[channel.id]; return next; });
     setActiveChannelId(channel.id);
     setSidebarOpen(false);
   };
@@ -869,8 +891,9 @@ export default function App() {
           <span className="brand-glyph">n</span>
         </button>
         <div className="rail-separator" />
-        {spaces.map((space) => (
-          <button key={space.id} className={`server-icon ${activeView === "server" && activeSpaceId === space.id ? "selected" : ""}`} title={space.name} onClick={() => {
+        {spaces.map((space) => {
+          const unreadCount = (channelsBySpace[space.id] || []).reduce((sum, channel) => sum + (unreadChannels[channel.id] || 0), 0);
+          return <button key={space.id} className={`server-icon ${activeView === "server" && activeSpaceId === space.id ? "selected" : ""}`} title={unreadCount ? `${space.name} — ${unreadCount} непрочитанных` : space.name} onClick={() => {
             const isCurrentSpace = activeView === "server" && activeSpaceId === space.id;
             const isMobile = window.matchMedia("(max-width: 760px)").matches;
             if (isCurrentSpace && isMobile) setSidebarOpen((open) => !open);
@@ -879,10 +902,10 @@ export default function App() {
               if (isMobile) setSidebarOpen(true);
             }
           }}>
-            <span>{initials(space.name)}</span>
+            <span>{initials(space.name)}</span>{unreadCount > 0 && <b className="server-unread">{unreadCount > 99 ? "99+" : unreadCount}</b>}
             <i />
           </button>
-        ))}
+        })}
         <button className="server-icon add-server" title="Создать сервер" onClick={() => setCreateSpaceOpen(true)}><Plus size={22} /></button>
         <button className="server-icon explore" title="Обзор сообществ" onClick={() => showNotice("Обзор сообществ: здесь появятся открытые серверы.")}><Compass size={20} /></button>
         <div className="rail-bottom">
@@ -919,19 +942,17 @@ export default function App() {
               <button onClick={() => { setServerNameDraft(activeSpace?.name || ""); setServerSettingsOpen(true); setChannelMenuOpen(false); }}><Settings size={16}/> Настройки сервера</button>
               <button onClick={() => { setCreateChannelOpen(true); setChannelMenuOpen(false); }}><Plus size={16}/> Создать канал</button>
             </> : <p>Общие настройки сервера может менять только владелец.</p>}
-            <button onClick={() => { setCreateSpaceOpen(true); setChannelMenuOpen(false); }}><Plus size={16}/> Создать сервер</button>
           </div>}
         </div>
         <div className="sidebar-scroll">
           <div className="section-heading"><span>ТЕКСТОВЫЕ КАНАЛЫ</span><button title="Создать канал" onClick={() => setCreateChannelOpen(true)}><Plus size={16}/></button></div>
           {channels.length ? channels.map((channel) => (
             <div key={channel.id} className={`channel-row ${channelMenuFor === channel.id ? "menu-open" : ""}`}>
-              <button className={`channel-item ${activeChannelId === channel.id ? "active" : ""}`} onClick={() => chooseChannel(channel)}><Hash size={18}/><span>{channel.name}</span></button>
+              <button className={`channel-item ${activeChannelId === channel.id ? "active" : ""} ${unreadChannels[channel.id] ? "has-unread" : ""}`} onClick={() => chooseChannel(channel)}><Hash size={18}/><span>{channel.name}</span>{unreadChannels[channel.id] ? <b className="channel-unread">{unreadChannels[channel.id] > 99 ? "99+" : unreadChannels[channel.id]}</b> : null}</button>
               {canManageChannels && <button className="channel-settings-button" title={`Настройки #${channel.name}`} onClick={() => setChannelMenuFor((old) => old === channel.id ? "" : channel.id)}><Settings size={15}/></button>}
               {channelMenuFor === channel.id && <div className="channel-context-menu"><button onClick={() => { chooseChannel(channel); setSlowmodeDraft(String(channel.slowmode_seconds || 0)); setChannelSettingsOpen(true); setChannelMenuFor(""); setSidebarOpen(false); }}><Settings size={15}/> Настройки канала</button><button className="danger" onClick={() => { chooseChannel(channel); setDeleteChannelOpen(true); setChannelMenuFor(""); setSidebarOpen(false); }}><Trash2 size={15}/> Удалить канал</button></div>}
             </div>
           )) : <p className="empty-small">Пока нет каналов.</p>}
-          <button className="channel-item add-channel" onClick={() => setCreateChannelOpen(true)}><Plus size={16}/><span>Добавить канал</span></button>
 
         </div>
         <div className="profile-bar">

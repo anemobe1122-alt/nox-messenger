@@ -98,6 +98,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 .server-icon.selected i { height: 28px; }
 .server-icon span { font-size: 13px; font-weight: 800; }
+.server-unread { position: absolute; right: -5px; bottom: -4px; min-width: 19px; height: 19px; padding: 0 4px; border: 2px solid var(--rail); border-radius: 10px; display: grid; place-items: center; color: #fff; background: #ed4245; font-size: 9px; line-height: 1; }
 .rail-separator { width: 32px; height: 1px; background: #383944; margin: 1px 0 2px; }
 .add-server { color: var(--green); background: #252a2d; }
 .explore { color: #7edcb3; background: #252a2d; }
@@ -210,6 +211,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .channel-item:hover { background: #292a34; color: #dedee9; }
 .channel-item.active { background: #343343; color: #f2efff; font-weight: 700; }
 .channel-item.active svg { color: #b1a7ff; }
+.channel-item.has-unread { color: #f2f3f5; font-weight: 700; }
+.channel-unread { margin-left: auto; color: #fff; font-size: 10px; font-weight: 700; }
 .add-channel { opacity: .8; font-size: 12px; }
 .empty-small { color: #7f8191; font-size: 12px; padding: 0 9px; }
 
