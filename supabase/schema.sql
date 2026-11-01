@@ -8,6 +8,7 @@ create table if not exists public.profiles (
   username text not null unique check (char_length(username) between 2 and 32),
   display_name text,
   avatar_url text,
+  bio text not null default '' check (char_length(bio) <= 190),
   presence_status text not null default 'online' check (presence_status in ('online', 'idle', 'dnd', 'invisible')),
   created_at timestamptz not null default now()
 );
@@ -160,7 +161,7 @@ grant select on public.direct_conversations, public.direct_conversation_members,
 grant insert, delete on public.direct_messages to authenticated;
 grant delete on public.messages to authenticated;
 grant delete on public.servers to authenticated;
-grant update (avatar_url, presence_status) on public.profiles to authenticated;
+grant update (avatar_url, presence_status, username, display_name, bio) on public.profiles to authenticated;
 grant update (name) on public.servers to authenticated;
 grant update (slowmode_seconds) on public.channels to authenticated;
 grant delete on public.channels to authenticated;

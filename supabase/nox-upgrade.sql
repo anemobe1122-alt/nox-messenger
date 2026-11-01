@@ -458,3 +458,8 @@ exception when undefined_object then
 end $$;
 
 notify pgrst, 'reload schema';
+-- Shared profile bios and editable display names/usernames.
+alter table public.profiles
+  add column if not exists bio text not null default '' check (char_length(bio) <= 190);
+grant update (username, display_name, bio) on public.profiles to authenticated;
+notify pgrst, 'reload schema';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, MouseEvent as ReactMouseEvent } from "react";
 import "./home.css";
 import {
   Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users, ArrowLeft,
@@ -9,7 +9,7 @@ import {
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
-type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus };
+type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus; bio?: string | null };
 type DmContact = Profile & { conversationId?: string };
 type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
@@ -41,6 +41,13 @@ function timeLabel(value: string) {
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profilePopoverOpen, setProfilePopoverOpen] = useState(false);
+  const [profilePopoverAnchor, setProfilePopoverAnchor] = useState<{ left: number; bottom: number } | null>(null);
+  const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
+  const [profileUsernameDraft, setProfileUsernameDraft] = useState("");
+  const [profileNameDraft, setProfileNameDraft] = useState("");
+  const [profileBioDraft, setProfileBioDraft] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
   const [friendRelations, setFriendRelations] = useState<FriendRelation[]>([]);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
@@ -135,7 +142,7 @@ export default function App() {
     const conversationIds = [...new Set((memberships || []).map((row: any) => row.conversation_id))];
     if (!conversationIds.length) { setDmContacts([]); return; }
     const { data: people, error: peopleError } = await supabase.from("direct_conversation_members")
-      .select("conversation_id, user_id, profiles(id, username, display_name, avatar_url, presence_status)")
+      .select("conversation_id, user_id, profiles(id, username, display_name, avatar_url, presence_status, bio)")
       .in("conversation_id", conversationIds).neq("user_id", uid);
     if (peopleError) { showNotice("Не удалось загрузить список личных чатов."); return; }
     const next = (people || []).flatMap((row: any) => {
@@ -159,7 +166,7 @@ export default function App() {
     const personIds = [...new Set(rows.map((row: any) => row.requester_id === uid ? row.addressee_id : row.requester_id))];
     if (!personIds.length) { setFriendRelations([]); return; }
     const { data: people, error: peopleError } = await supabase.from("profiles")
-      .select("id, username, display_name, avatar_url, presence_status").in("id", personIds);
+      .select("id, username, display_name, avatar_url, presence_status, bio").in("id", personIds);
     if (peopleError) { showNotice("Не удалось загрузить профили друзей."); return; }
     const profilesById = new Map((people || []).map((person: any) => [person.id, person as Profile]));
     setFriendRelations(rows.flatMap((row: any) => {
@@ -178,6 +185,58 @@ export default function App() {
       const { error } = await supabase.from("profiles").update({ presence_status: next }).eq("id", user.id);
       if (error) showNotice(`Не удалось сохранить статус. Примени supabase/nox-upgrade.sql: ${error.message}`);
     }
+  }
+
+  function openProfilePopover(event: ReactMouseEvent<HTMLButtonElement>) {
+    if (!user || !supabase) {
+      setAuthMode("signin");
+      setShowAuth(true);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = Math.min(320, window.innerWidth - 20);
+    setProfilePopoverAnchor({
+      left: Math.max(10, Math.min(rect.left, window.innerWidth - width - 10)),
+      bottom: Math.max(12, window.innerHeight - rect.top + 8)
+    });
+    setProfilePopoverOpen((open) => !open);
+  }
+
+  function openProfileSettings() {
+    if (!user || !supabase) {
+      setAuthMode("signin");
+      setShowAuth(true);
+      return;
+    }
+    setProfileUsernameDraft(profile?.username || "");
+    setProfileNameDraft(profile?.display_name || profile?.username || "");
+    setProfileBioDraft(profile?.bio || "");
+    setProfilePopoverOpen(false);
+    setProfileSettingsOpen(true);
+    setPresenceMenuOpen(false);
+  }
+
+  async function saveProfileSettings(e: FormEvent) {
+    e.preventDefault();
+    if (!supabase || !user) return;
+    const username = profileUsernameDraft.trim().replace(/^@/, "").toLowerCase();
+    const displayName = profileNameDraft.trim().slice(0, 32);
+    const bio = profileBioDraft.trim().slice(0, 190);
+    if (!/^[a-z0-9_]{2,32}$/.test(username)) { showNotice("Ник должен содержать 2–32 символа: латинские буквы, цифры или _."); return; }
+    if (!displayName) { showNotice("Укажи отображаемое имя."); return; }
+    setProfileSaving(true);
+    const { data, error } = await supabase.from("profiles")
+      .update({ username, display_name: displayName, bio })
+      .eq("id", user.id).select("*").single();
+    setProfileSaving(false);
+    if (error) {
+      showNotice(error.code === "23505" ? "Этот ник уже занят." : `Не удалось сохранить профиль. Примени supabase/nox-upgrade.sql: ${error.message}`);
+      return;
+    }
+    setProfile(data as Profile);
+    setProfileSettingsOpen(false);
+    await Promise.all([loadDirectContacts(user.id), loadFriendRelations(user.id)]);
+    showNotice("Профиль обновлён.");
   }
 
   async function saveServerSettings(e: FormEvent) {
@@ -313,7 +372,7 @@ export default function App() {
       return;
     }
     const { data, error } = await supabase.from("messages")
-      .select("id, channel_id, user_id, content, created_at, profiles(id, username, display_name, avatar_url)")
+      .select("id, channel_id, user_id, content, created_at, profiles(id, username, display_name, avatar_url, bio)")
       .eq("channel_id", channelId).order("created_at", { ascending: true }).limit(100);
     if (error) { showNotice("Не удалось загрузить сообщения. Проверь SQL-схему."); setMessages([]); return; }
     setMessages((data || []).map((m: any) => ({ ...m, profile: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles })));
@@ -411,8 +470,8 @@ export default function App() {
     const timer = window.setTimeout(async () => {
       setPeopleLoading(true);
       const [byUsername, byName] = await Promise.all([
-        supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status").neq("id", user.id).ilike("username", `%${query}%`).limit(20),
-        supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status").neq("id", user.id).ilike("display_name", `%${query}%`).limit(20)
+        supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio").neq("id", user.id).ilike("username", `%${query}%`).limit(20),
+        supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio").neq("id", user.id).ilike("display_name", `%${query}%`).limit(20)
       ]);
       if (cancelled) return;
       if (byUsername.error || byName.error) showNotice("Не удалось найти пользователей. Проверь подключение Supabase.");
@@ -438,7 +497,7 @@ export default function App() {
     const conversationId = activeDmContact.conversationId;
     (async () => {
       const { data, error } = await supabase!.from("direct_messages")
-        .select("id, conversation_id, user_id, content, message_type, metadata, created_at, profiles(id, username, display_name, avatar_url, presence_status)")
+        .select("id, conversation_id, user_id, content, message_type, metadata, created_at, profiles(id, username, display_name, avatar_url, presence_status, bio)")
         .eq("conversation_id", conversationId).order("created_at", { ascending: true }).limit(200);
       if (cancelled) return;
       if (error) { showNotice("Не удалось загрузить сообщения. Примени обновлённую Supabase-схему."); return; }
@@ -454,7 +513,7 @@ export default function App() {
         filter: `conversation_id=eq.${conversationId}`
       }, async (payload) => {
         const row = payload.new as any;
-        const { data: person } = await supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status").eq("id", row.user_id).maybeSingle();
+        const { data: person } = await supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio").eq("id", row.user_id).maybeSingle();
         const message = { ...row, channel_id: conversationId, profile: person as Profile | undefined } as Message;
         setDmMessages((old) => ({ ...old, [conversationId]: (old[conversationId] || []).some((m) => m.id === message.id) ? old[conversationId] : [...(old[conversationId] || []), message] }));
       })
@@ -480,7 +539,7 @@ export default function App() {
             const row = payload.new as any;
             if (row.user_id === user.id) return;
             const { data: person } = await supabase!.from("profiles")
-              .select("id, username, display_name, avatar_url, presence_status").eq("id", row.user_id).maybeSingle();
+              .select("id, username, display_name, avatar_url, presence_status, bio").eq("id", row.user_id).maybeSingle();
             const message = { ...row, channel_id: conversationId, profile: person as Profile | undefined } as Message;
             setDmMessages((old) => ({
               ...old,
@@ -984,11 +1043,11 @@ export default function App() {
         <button className="server-icon add-server" title="Создать сервер" onClick={() => setCreateSpaceOpen(true)}><Plus size={22} /></button>
         <button className="server-icon explore" title="Обзор сообществ" onClick={() => showNotice("Обзор сообществ: здесь появятся открытые серверы.")}><Compass size={20} /></button>
         <div className="rail-bottom">
-          <button type="button" className="rail-avatar-picker" title={avatarBusy ? "Загрузка аватара…" : "Сменить аватар"} onClick={openAvatarPicker}>
+          <button type="button" className="rail-avatar-picker" title="Открыть профиль" onClick={openProfilePopover}>
             <ProfileAvatar profile={profile} name={currentName} className="avatar rail-avatar" />
             <ImagePlus size={13} />
           </button>
-          <button className="tiny-icon" title="Настройки профиля" onClick={() => showNotice(`Ты вошёл как ${currentName}. Нажми на аватар, чтобы заменить его.`)}><Settings size={19} /></button>
+          <button className="tiny-icon" title="Редактировать профиль" onClick={openProfileSettings}><Settings size={19} /></button>
         </div>
       </aside>
 
@@ -1003,7 +1062,7 @@ export default function App() {
           {!dmContacts.length && <p className="empty-small">Пока нет личных чатов.</p>}
         </div>
         <div className="profile-bar">
-          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button><div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
+          <button type="button" className="profile-avatar-button" title="Открыть профиль" onClick={openProfilePopover}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button><div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>{user ? <LogOut size={17}/> : <Settings size={17}/>}</button>
           <button className={`profile-action ${muted ? "control-active" : ""}`} title={muted ? "Включить микрофон" : "Выключить микрофон"} onClick={() => { setMuted(!muted); showNotice(muted ? "Микрофон включён" : "Микрофон выключен"); }}><Mic size={17}/></button><button className={`profile-action ${deafened ? "control-active" : ""}`} title={deafened ? "Включить звук" : "Выключить звук"} onClick={() => { setDeafened(!deafened); showNotice(deafened ? "Звук включён" : "Звук выключен"); }}><Headphones size={17}/></button>
         </div>
@@ -1033,7 +1092,7 @@ export default function App() {
 
         </div>
         <div className="profile-bar">
-          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
+          <button type="button" className="profile-avatar-button" title="Открыть профиль" onClick={openProfilePopover}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
           <div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>
             {user ? <LogOut size={17}/> : <Settings size={17}/>}
@@ -1214,6 +1273,42 @@ export default function App() {
             {searchResults.map((m) => <button key={`${m.channel_id}-${m.id}`} className="search-result" onClick={() => { const target = spaces.flatMap((s) => channelsBySpace[s.id] || []).find((c) => c.id === m.channel_id); if (target) { setActiveView("server"); setActiveSpaceId(target.server_id); setActiveChannelId(target.id); } else showNotice(`Сообщение из канала #${m.channel_id.replace(/^demo-/, "")}`); setSearchOpen(false); }}><strong>#{(channels.find((c) => c.id === m.channel_id)?.name || m.channel_id.replace(/^demo-/, ""))}</strong><span>{m.content}</span></button>)}
           </div>
         </div>
+      </div>}
+
+      {profilePopoverOpen && profilePopoverAnchor && <>
+        <button type="button" className="profile-popover-dismiss" aria-label="Закрыть профиль" onClick={() => setProfilePopoverOpen(false)} />
+        <section className="profile-popover" style={{ left: profilePopoverAnchor.left, bottom: profilePopoverAnchor.bottom }}>
+          <button type="button" className="profile-popover-close" aria-label="Закрыть" onClick={() => setProfilePopoverOpen(false)}><X size={17}/></button>
+          <div className="profile-popover-banner" />
+          <div className="profile-popover-main">
+            <button type="button" className="profile-popover-avatar" title="Сменить аватар" onClick={openAvatarPicker}>
+              <ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar" />
+              <ImagePlus size={15}/>
+            </button>
+            <strong>{currentName}</strong>
+            <span className="profile-popover-username">@{profile?.username || "profile"}</span>
+            <div className="profile-popover-status"><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</div>
+            <div className="profile-popover-bio">{profile?.bio?.trim() || "Пока без описания."}</div>
+            <button type="button" className="profile-edit-button" onClick={openProfileSettings}><Settings size={15}/> Редактировать профиль</button>
+          </div>
+        </section>
+      </>}
+
+      {profileSettingsOpen && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setProfileSettingsOpen(false); }}>
+        <form className="modal profile-edit-modal" onSubmit={saveProfileSettings}>
+          <button type="button" className="modal-close" onClick={() => setProfileSettingsOpen(false)}><X size={19}/></button>
+          <h2>Редактировать профиль</h2>
+          <div className="profile-edit-avatar-row">
+            <ProfileAvatar profile={profile} name={currentName} className="avatar profile-edit-avatar" />
+            <div><strong>{currentName}</strong><small>Аватар виден другим участникам.</small></div>
+            <button type="button" className="secondary-button" disabled={avatarBusy} onClick={openAvatarPicker}><ImagePlus size={15}/>{avatarBusy ? "Загрузка…" : "Сменить"}</button>
+          </div>
+          <label>Отображаемое имя<input value={profileNameDraft} onChange={(e) => setProfileNameDraft(e.target.value)} maxLength={32} required /></label>
+          <label>Ник<input value={profileUsernameDraft} onChange={(e) => setProfileUsernameDraft(e.target.value)} maxLength={32} placeholder="username" required /></label>
+          <label>О себе<textarea value={profileBioDraft} onChange={(e) => setProfileBioDraft(e.target.value)} maxLength={190} rows={4} placeholder="Расскажи немного о себе" /></label>
+          <small className="profile-bio-count">{profileBioDraft.length}/190</small>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setProfileSettingsOpen(false)}>Отмена</button><button className="primary-button" disabled={profileSaving}>{profileSaving ? "Сохраняю…" : "Сохранить"}</button></div>
+        </form>
       </div>}
 
       <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={uploadAvatar} />

@@ -116,6 +116,20 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .profile-avatar-button { flex: 0 0 auto; border: 0; padding: 0; border-radius: 50%; background: transparent; }
 .profile-avatar-button:hover { box-shadow: 0 0 0 2px #5865f2; }
 .profile-avatar-image { object-fit: cover; overflow: hidden; }
+.profile-popover-dismiss { position: fixed; z-index: 119; inset: 0; border: 0; background: transparent; }
+.profile-popover { position: fixed; z-index: 120; width: min(320px, calc(100vw - 20px)); max-height: min(480px, calc(100dvh - 24px)); overflow-y: auto; border: 1px solid #41434d; border-radius: 14px; color: #f2f3f5; background: #1e1f22; box-shadow: 0 14px 42px #000a; }
+.profile-popover-banner { height: 76px; background: radial-gradient(ellipse at 85% 0%, #998aff88, transparent 48%), linear-gradient(135deg, #39334f, #25262c); }
+.profile-popover-close { position: absolute; z-index: 1; top: 8px; right: 8px; width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #e3e3ea; background: #141519aa; }
+.profile-popover-main { padding: 0 15px 15px; display: flex; flex-direction: column; align-items: flex-start; }
+.profile-popover-avatar { position: relative; width: 68px; height: 68px; margin-top: -30px; padding: 3px; border: 4px solid #1e1f22; border-radius: 50%; background: #1e1f22; }
+.profile-popover-avatar .avatar-presence-wrap, .profile-popover-avatar > .avatar, .profile-edit-avatar { width: 58px; height: 58px; border-radius: 50%; font-size: 19px; }
+.profile-popover-avatar > svg { position: absolute; right: 0; bottom: 1px; width: 21px; height: 21px; padding: 3px; border: 2px solid #1e1f22; border-radius: 50%; color: #fff; background: #5865f2; }
+.profile-popover-main > strong { margin-top: 7px; font-size: 17px; }
+.profile-popover-username { color: #aeb0b6; font-size: 12px; }
+.profile-popover-status { display: flex; align-items: center; gap: 7px; margin-top: 12px; color: #c8c9ce; font-size: 11px; }
+.profile-popover-bio { width: 100%; min-height: 42px; margin-top: 12px; padding-top: 11px; border-top: 1px solid #393a40; color: #c8c9ce; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.profile-edit-button { width: 100%; min-height: 38px; margin-top: 12px; border: 0; border-radius: 7px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; background: #5865f2; font-size: 12px; font-weight: 700; }
+.profile-edit-button:hover { background: #4752c4; }
 
 .tiny-icon, .profile-action {
   border: 0;
@@ -602,6 +616,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 .modal label input:focus { border-color: #9183f3; }
+.modal label textarea { min-height: 88px; resize: vertical; border: 1px solid #41424e; border-radius: 8px; padding: 11px 12px; outline: none; color: #f0eff8; background: #191a20; font: inherit; font-size: 12px; line-height: 1.5; text-transform: none; letter-spacing: 0; }
+.modal label textarea:focus { border-color: #9183f3; }
+.profile-edit-modal { gap: 12px; }
+.profile-edit-avatar-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; background: #2b2d31; }
+.profile-edit-avatar-row > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.profile-edit-avatar-row > div strong { color: #f2f3f5; font-size: 12px; }
+.profile-edit-avatar-row > div small { color: #aeb0b6; font-size: 10px; line-height: 1.35; }
+.profile-edit-avatar-row > button { display: flex; align-items: center; gap: 6px; }
+.profile-bio-count { align-self: flex-end; margin-top: -10px; color: #aeb0b6; font-size: 10px; }
 
 .primary-button {
   border: 0;
@@ -697,6 +720,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 @media (max-width: 760px) {
   html, body, #root { height: 100%; overscroll-behavior: none; }
   body { min-height: 0; }
+  input, textarea, select { font-size: 16px !important; }
   .app-shell { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100svh; min-height: 0; overscroll-behavior: none; grid-template-columns: 62px minmax(0, 1fr); }
   .chat-area { min-height: 0; }
   .server-rail { padding-top: 12px; }
