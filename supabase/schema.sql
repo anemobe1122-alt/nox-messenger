@@ -8,6 +8,7 @@ create table if not exists public.profiles (
   username text not null unique check (char_length(username) between 2 and 32),
   display_name text,
   avatar_url text,
+  presence_status text not null default 'online' check (presence_status in ('online', 'idle', 'dnd', 'invisible')),
   created_at timestamptz not null default now()
 );
 
@@ -158,7 +159,8 @@ grant execute on function public.create_or_get_direct_conversation(uuid) to auth
 grant select on public.direct_conversations, public.direct_conversation_members, public.direct_messages to authenticated;
 grant insert, delete on public.direct_messages to authenticated;
 grant delete on public.messages to authenticated;
-grant update (avatar_url) on public.profiles to authenticated;
+grant update (avatar_url, presence_status) on public.profiles to authenticated;
+grant update (name) on public.servers to authenticated;
 grant update (slowmode_seconds) on public.channels to authenticated;
 grant delete on public.channels to authenticated;
 
@@ -305,6 +307,32 @@ begin
   end if;
 exception when undefined_object then
   raise notice 'Publication supabase_realtime was not found; enable Realtime for public.direct_messages in Supabase Dashboard.';
+end $$;
+
+-- Realtime delivery for shared profile presence.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles'
+  ) then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+exception when undefined_object then
+  raise notice 'Publication supabase_realtime was not found; enable Realtime for public.profiles in Supabase Dashboard.';
+end $$;
+
+-- Realtime delivery for server name changes.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'servers'
+  ) then
+    alter publication supabase_realtime add table public.servers;
+  end if;
+exception when undefined_object then
+  raise notice 'Publication supabase_realtime was not found; enable Realtime for public.servers in Supabase Dashboard.';
 end $$;
 
 create or replace function public.enforce_channel_slowmode()

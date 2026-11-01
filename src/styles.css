@@ -125,6 +125,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 .channel-sidebar {
+  position: relative;
   background: var(--sidebar);
   min-width: 0;
   display: flex;
@@ -156,6 +157,16 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .space-actions-menu button.danger { color: #f28b8e; }
 .space-actions-menu button.danger:hover { background: #522d32; }
 .space-actions-menu p { margin: 7px 8px; color: #b5bac1; font-size: 11px; line-height: 1.45; }
+.channel-row { position: relative; display: flex; align-items: center; border-radius: 5px; }
+.channel-row .channel-item { flex: 1; min-width: 0; }
+.channel-settings-button { width: 29px; height: 29px; flex: 0 0 auto; border: 0; border-radius: 5px; display: grid; place-items: center; color: #aeb1b7; background: transparent; opacity: 0; }
+.channel-row:hover .channel-settings-button, .channel-row.menu-open .channel-settings-button, .channel-settings-button:focus-visible { opacity: 1; }
+.channel-settings-button:hover { color: #fff; background: #50525a; }
+.channel-context-menu { position: absolute; z-index: 65; top: 32px; right: 3px; width: 175px; padding: 5px; border: 1px solid #3f4147; border-radius: 8px; background: #1e1f22; box-shadow: 0 10px 28px #0008; }
+.channel-context-menu button { width: 100%; min-height: 35px; padding: 7px 8px; border: 0; border-radius: 5px; display: flex; align-items: center; gap: 8px; color: #dbdee1; background: transparent; text-align: left; font-size: 11px; }
+.channel-context-menu button:hover { background: #35373c; }
+.channel-context-menu button.danger { color: #f28b8e; }
+.channel-context-menu button.danger:hover { background: #522d32; }
 .sidebar-scroll { padding: 23px 10px 15px; overflow-y: auto; flex: 1; }
 
 .section-heading {
@@ -235,6 +246,23 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 .profile-copy strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-copy span { color: #9698a7; font-size: 10px; }
+.avatar-presence-wrap { position: relative; display: inline-flex; flex: 0 0 auto; line-height: 0; }
+.presence-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #3ba55c; }
+.avatar-presence-wrap > .presence-dot { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border: 2px solid #2b2d31; }
+.presence-dot.status-online { background: #3ba55c; }
+.presence-dot.status-idle { background: #faa61a; }
+.presence-dot.status-dnd { background: #ed4245; }
+.presence-dot.status-invisible { background: #747f8d; }
+.presence-menu-wrap { position: relative; min-width: 0; }
+.presence-trigger { max-width: 120px; padding: 0; border: 0; display: flex; align-items: center; gap: 5px; overflow: hidden; color: #9698a7; background: transparent; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.presence-trigger:hover { color: #fff; }
+.presence-menu { position: absolute; z-index: 90; left: -8px; bottom: 27px; width: 252px; padding: 6px; border: 1px solid #41434a; border-radius: 9px; background: #1e1f22; box-shadow: 0 12px 32px #0009; }
+.presence-menu button { width: 100%; min-height: 50px; padding: 7px 9px; border: 0; border-radius: 6px; display: flex; align-items: flex-start; gap: 10px; color: #dbdee1; background: transparent; text-align: left; }
+.presence-menu button:hover, .presence-menu button.selected { background: #35373c; }
+.presence-menu button > .presence-dot { margin-top: 5px; }
+.presence-menu button span { display: flex; flex-direction: column; gap: 3px; }
+.presence-menu button strong { font-size: 12px; }
+.presence-menu button small { color: #aeb1b7; font-size: 10px; }
 .profile-action { padding: 6px; }
 
 .chat-area {
@@ -684,6 +712,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 @media (hover: none) {
   .message-delete-button { width: 36px; height: 36px; margin: -11px 0 -11px auto; opacity: 1; }
+  .channel-settings-button { opacity: 1; width: 36px; height: 36px; }
 }
 
 @media (max-width: 420px) {

@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
-type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null };
+type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
+type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus };
 type DmContact = Profile & { conversationId?: string };
 type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
@@ -52,10 +53,20 @@ function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
 }
 function ProfileAvatar({ profile, name, className }: { profile?: Profile | null; name: string; className: string }) {
-  return profile?.avatar_url
+  const avatar = profile?.avatar_url
     ? <img className={`${className} profile-avatar-image`} src={profile.avatar_url} alt={`${name} — аватар`} />
-    : <div className={className}>{initials(name)}</div>;
+    : <span className={className}>{initials(name)}</span>;
+  return profile?.presence_status ? <span className="avatar-presence-wrap">{avatar}<i className={`presence-dot status-${profile.presence_status}`} title={profile.presence_status === "invisible" ? "Не в сети" : presenceLabel(profile.presence_status)} /></span> : avatar;
 }
+function presenceLabel(status: PresenceStatus) {
+  return ({ online: "В сети", idle: "Неактивен", dnd: "Не беспокоить", invisible: "Невидимый" } as const)[status];
+}
+const presenceOptions: { value: PresenceStatus; label: string; hint: string }[] = [
+  { value: "online", label: "В сети", hint: "Ты доступен для общения" },
+  { value: "idle", label: "Неактивен", hint: "Показывать, что ты отошёл" },
+  { value: "dnd", label: "Не беспокоить", hint: "Отключить всплывающие уведомления" },
+  { value: "invisible", label: "Невидимый", hint: "Показывать тебя не в сети" }
+];
 function timeLabel(value: string) {
   return new Date(value).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
@@ -65,6 +76,8 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [friendRelations, setFriendRelations] = useState<FriendRelation[]>([]);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [presenceMenuOpen, setPresenceMenuOpen] = useState(false);
+  const [presence, setPresence] = useState<PresenceStatus>(() => (localStorage.getItem("nox-presence") as PresenceStatus) || "online");
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [spaces, setSpaces] = useState<Space[]>(demoSpaces);
   const [channelsBySpace, setChannelsBySpace] = useState<Record<string, Channel[]>>(demoChannels);
@@ -86,6 +99,9 @@ export default function App() {
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [channelMenuOpen, setChannelMenuOpen] = useState(false);
+  const [channelMenuFor, setChannelMenuFor] = useState("");
+  const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+  const [serverNameDraft, setServerNameDraft] = useState("");
   const [channelSettingsOpen, setChannelSettingsOpen] = useState(false);
   const [deleteChannelOpen, setDeleteChannelOpen] = useState(false);
   const [slowmodeDraft, setSlowmodeDraft] = useState("0");
@@ -102,6 +118,8 @@ export default function App() {
   const [dmMessages, setDmMessages] = useState<Record<string, Message[]>>(() => {
     try { return JSON.parse(localStorage.getItem("nox-dm-messages") || "{}"); } catch { return {}; }
   });
+  const [unreadDms, setUnreadDms] = useState<Record<string, number>>({});
+  const [dmPings, setDmPings] = useState<{ id: string; conversationId: string; userId: string; sender: string; content: string; avatar_url?: string | null }[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationsOn, setNotificationsOn] = useState(true);
@@ -141,10 +159,10 @@ export default function App() {
   const loadProfile = useCallback(async (authUser: any) => {
     if (!supabase || !authUser) return;
     const { data } = await supabase.from("profiles").select("*").eq("id", authUser.id).maybeSingle();
-    if (data) setProfile(data as Profile);
+    if (data) { setProfile(data as Profile); setPresence((data.presence_status as PresenceStatus) || "online"); }
     else {
       const username = String(authUser.email || "user").split("@")[0].replace(/[^a-zA-Z0-9_]/g, "").slice(0, 24) || "user";
-      const fallback = { id: authUser.id, username, display_name: authUser.user_metadata?.display_name || username };
+      const fallback = { id: authUser.id, username, display_name: authUser.user_metadata?.display_name || username, presence_status: "online" as PresenceStatus };
       const { data: inserted } = await supabase.from("profiles").upsert(fallback).select("*").maybeSingle();
       setProfile((inserted || fallback) as Profile);
     }
@@ -159,7 +177,7 @@ export default function App() {
     const conversationIds = [...new Set((memberships || []).map((row: any) => row.conversation_id))];
     if (!conversationIds.length) { setDmContacts([]); return; }
     const { data: people, error: peopleError } = await supabase.from("direct_conversation_members")
-      .select("conversation_id, user_id, profiles(id, username, display_name, avatar_url)")
+      .select("conversation_id, user_id, profiles(id, username, display_name, avatar_url, presence_status)")
       .in("conversation_id", conversationIds).neq("user_id", uid);
     if (peopleError) { showNotice("Не удалось загрузить список личных чатов."); return; }
     const next = (people || []).flatMap((row: any) => {
@@ -183,7 +201,7 @@ export default function App() {
     const personIds = [...new Set(rows.map((row: any) => row.requester_id === uid ? row.addressee_id : row.requester_id))];
     if (!personIds.length) { setFriendRelations([]); return; }
     const { data: people, error: peopleError } = await supabase.from("profiles")
-      .select("id, username, display_name, avatar_url").in("id", personIds);
+      .select("id, username, display_name, avatar_url, presence_status").in("id", personIds);
     if (peopleError) { showNotice("Не удалось загрузить профили друзей."); return; }
     const profilesById = new Map((people || []).map((person: any) => [person.id, person as Profile]));
     setFriendRelations(rows.flatMap((row: any) => {
@@ -192,6 +210,32 @@ export default function App() {
       return person ? [{ ...person, requestId: row.id, requesterId: row.requester_id, addresseeId: row.addressee_id, status: row.status } as FriendRelation] : [];
     }));
   }, [showNotice]);
+
+  async function choosePresence(next: PresenceStatus) {
+    setPresence(next);
+    localStorage.setItem("nox-presence", next);
+    setPresenceMenuOpen(false);
+    if (profile) setProfile({ ...profile, presence_status: next });
+    if (supabase && user) {
+      const { error } = await supabase.from("profiles").update({ presence_status: next }).eq("id", user.id);
+      if (error) showNotice(`Не удалось сохранить статус. Примени supabase/nox-upgrade.sql: ${error.message}`);
+    }
+  }
+
+  async function saveServerSettings(e: FormEvent) {
+    e.preventDefault();
+    if (!activeSpace) return;
+    const name = serverNameDraft.trim().slice(0, 48);
+    if (!name) { showNotice("Введи название сервера."); return; }
+    const remote = !!supabase && !!user && !activeSpace.id.startsWith("demo-") && !activeSpace.id.startsWith("local-");
+    if (remote) {
+      const { data, error } = await supabase!.from("servers").update({ name }).eq("id", activeSpace.id).select("id").maybeSingle();
+      if (error || !data) { showNotice(error?.message || "Не удалось изменить сервер. Нужны права владельца."); return; }
+    }
+    setSpaces((old) => old.map((space) => space.id === activeSpace.id ? { ...space, name } : space));
+    setServerSettingsOpen(false);
+    showNotice("Настройки сервера сохранены.");
+  }
 
   const loadSpaces = useCallback(async (uid: string) => {
     if (!supabase) return;
@@ -294,8 +338,8 @@ export default function App() {
     const timer = window.setTimeout(async () => {
       setPeopleLoading(true);
       const [byUsername, byName] = await Promise.all([
-        supabase!.from("profiles").select("id, username, display_name, avatar_url").neq("id", user.id).ilike("username", `%${query}%`).limit(20),
-        supabase!.from("profiles").select("id, username, display_name, avatar_url").neq("id", user.id).ilike("display_name", `%${query}%`).limit(20)
+        supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status").neq("id", user.id).ilike("username", `%${query}%`).limit(20),
+        supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status").neq("id", user.id).ilike("display_name", `%${query}%`).limit(20)
       ]);
       if (cancelled) return;
       if (byUsername.error || byName.error) showNotice("Не удалось найти пользователей. Проверь подключение Supabase.");
@@ -321,7 +365,7 @@ export default function App() {
     const conversationId = activeDmContact.conversationId;
     (async () => {
       const { data, error } = await supabase!.from("direct_messages")
-        .select("id, conversation_id, user_id, content, created_at, profiles(id, username, display_name, avatar_url)")
+        .select("id, conversation_id, user_id, content, created_at, profiles(id, username, display_name, avatar_url, presence_status)")
         .eq("conversation_id", conversationId).order("created_at", { ascending: true }).limit(200);
       if (cancelled) return;
       if (error) { showNotice("Не удалось загрузить сообщения. Примени обновлённую Supabase-схему."); return; }
@@ -337,7 +381,7 @@ export default function App() {
         filter: `conversation_id=eq.${conversationId}`
       }, async (payload) => {
         const row = payload.new as any;
-        const { data: person } = await supabase!.from("profiles").select("id, username, display_name, avatar_url").eq("id", row.user_id).maybeSingle();
+        const { data: person } = await supabase!.from("profiles").select("id, username, display_name, avatar_url, presence_status").eq("id", row.user_id).maybeSingle();
         const message = { ...row, channel_id: conversationId, profile: person as Profile | undefined } as Message;
         setDmMessages((old) => ({ ...old, [conversationId]: (old[conversationId] || []).some((m) => m.id === message.id) ? old[conversationId] : [...(old[conversationId] || []), message] }));
       })
@@ -348,6 +392,72 @@ export default function App() {
       }).subscribe();
     return () => { cancelled = true; supabase!.removeChannel(channel); };
   }, [activeDm, activeDmContact?.conversationId, activeDmKey, user, showNotice]);
+
+  useEffect(() => {
+    if (!supabase || !user || !dmContacts.length) return;
+    const channels = dmContacts
+      .filter((contact) => contact.conversationId && !(activeView === "home" && contact.conversationId === activeDmContact?.conversationId))
+      .map((contact) => {
+        const conversationId = contact.conversationId!;
+        return supabase!.channel(`dm-notify:${user.id}:${conversationId}`)
+          .on("postgres_changes", {
+            event: "INSERT", schema: "public", table: "direct_messages",
+            filter: `conversation_id=eq.${conversationId}`
+          }, async (payload) => {
+            const row = payload.new as any;
+            if (row.user_id === user.id) return;
+            const { data: person } = await supabase!.from("profiles")
+              .select("id, username, display_name, avatar_url, presence_status").eq("id", row.user_id).maybeSingle();
+            const sender = person?.display_name || person?.username || (contact.display_name || contact.username);
+            const message = { ...row, channel_id: conversationId, profile: person as Profile | undefined } as Message;
+            setDmMessages((old) => ({
+              ...old,
+              [conversationId]: (old[conversationId] || []).some((item) => item.id === message.id)
+                ? old[conversationId] : [...(old[conversationId] || []), message]
+            }));
+            setUnreadDms((old) => ({ ...old, [contact.id]: (old[contact.id] || 0) + 1 }));
+            if (presence !== "dnd") {
+              const ping = { id: message.id, conversationId, userId: contact.id, sender, content: message.content, avatar_url: person?.avatar_url };
+              setDmPings((old) => [...old.filter((item) => item.id !== ping.id), ping].slice(-3));
+              window.setTimeout(() => setDmPings((old) => old.filter((item) => item.id !== ping.id)), 7000);
+            }
+          })
+          .subscribe();
+      });
+    return () => { channels.forEach((channel) => void supabase!.removeChannel(channel)); };
+  }, [dmContacts, activeDmContact?.conversationId, activeView, user, presence]);
+
+  useEffect(() => {
+    if (!activeDmContact) return;
+    setUnreadDms((old) => {
+      if (!old[activeDmContact.id]) return old;
+      const next = { ...old };
+      delete next[activeDmContact.id];
+      return next;
+    });
+    if (activeDmContact.conversationId) setDmPings((old) => old.filter((ping) => ping.conversationId !== activeDmContact.conversationId));
+  }, [activeDmContact?.id, activeDmContact?.conversationId]);
+
+  useEffect(() => {
+    if (!supabase || !user) return;
+    const channel = supabase.channel(`profile-presence:${user.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (payload) => {
+        const updated = payload.new as Profile;
+        if (!updated?.id) return;
+        if (updated.id === user.id) { setProfile((old) => old ? { ...old, ...updated } : updated); if (updated.presence_status) setPresence(updated.presence_status); }
+        setDmContacts((old) => old.map((person) => person.id === updated.id ? { ...person, ...updated } : person));
+        setFriendRelations((old) => old.map((person) => person.id === updated.id ? { ...person, ...updated } : person));
+        setPeopleResults((old) => old.map((person) => person.id === updated.id ? { ...person, ...updated } : person));
+        setMembers((old) => old.map((person) => person.id === updated.id ? { ...person, ...updated } : person));
+        setDmMessages((old) => Object.fromEntries(Object.entries(old).map(([key, rows]) => [key, rows.map((message) => message.profile?.id === updated.id ? { ...message, profile: { ...message.profile, ...updated } } : message)])));
+      }).subscribe();
+    const serverChannel = supabase.channel(`server-settings:${user.id}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "servers" }, (payload) => {
+        const updated = payload.new as { id: string; name: string };
+        if (updated?.id && updated.name) setSpaces((old) => old.map((space) => space.id === updated.id ? { ...space, name: updated.name } : space));
+      }).subscribe();
+    return () => { void supabase!.removeChannel(channel); void supabase!.removeChannel(serverChannel); };
+  }, [user]);
 
   useEffect(() => {
     if (!supabase || !activeChannelId || activeChannelId.startsWith("demo-")) return;
@@ -385,6 +495,8 @@ export default function App() {
 
   const chooseSpace = (space: Space) => {
     setChannelMenuOpen(false);
+    setChannelMenuFor("");
+    setActiveDm("");
     setActiveSpaceId(space.id);
     const next = channelsBySpace[space.id] || [];
     setActiveChannelId(next[0]?.id || "");
@@ -392,6 +504,7 @@ export default function App() {
   };
   const chooseChannel = (channel: Channel) => {
     setChannelMenuOpen(false);
+    setChannelMenuFor("");
     setActiveChannelId(channel.id);
     setSidebarOpen(false);
   };
@@ -743,6 +856,7 @@ export default function App() {
     : ["Сообщения", "Найти беседу", "Новая беседа"].includes(activeHomeTab)
       ? "Новая беседа"
       : "";
+  const dmNotifications = dmPings.length > 0 && <div className="dm-notifications" aria-live="polite">{dmPings.map((ping) => <button key={ping.id} className="dm-notification" onClick={() => { const person = dmContacts.find((item) => item.id === ping.userId); if (person) { setActiveView("home"); setActiveDm(person.id); setUnreadDms((old) => { const next = { ...old }; delete next[person.id]; return next; }); setActiveHomeTab("Сообщения"); } setDmPings((old) => old.filter((item) => item.id !== ping.id)); }}><ProfileAvatar profile={{ id: ping.userId, username: ping.sender, display_name: ping.sender, avatar_url: ping.avatar_url, presence_status: "online" }} name={ping.sender} className="dm-avatar"/><span><strong>{ping.sender}</strong><small>{ping.content}</small></span><i onClick={(e) => { e.stopPropagation(); setDmPings((old) => old.filter((item) => item.id !== ping.id)); }}>×</i></button>)}</div>;
 
   return (
     <div className={`app-shell ${activeView === "home" ? "home-shell" : ""} ${!membersOpen ? "members-hidden" : ""}`}>
@@ -787,11 +901,11 @@ export default function App() {
         </nav>
         <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setSearchOpen(true)}><Plus size={18}/></button></div>
         <div className="dm-list">
-          {dmContacts.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className={`dm-item ${activeDm === person.id ? "active" : ""}`} onClick={() => { setActiveDm(person.id); setActiveHomeTab("Сообщения"); setSidebarOpen(false); }}><ProfileAvatar profile={person} name={name} className="dm-avatar" /><span className="dm-name">{name}</span><i/></button>; })}
+          {dmContacts.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className={`dm-item ${activeDm === person.id ? "active" : ""}`} onClick={() => { setActiveDm(person.id); setUnreadDms((old) => { const next = { ...old }; delete next[person.id]; return next; }); setDmPings((old) => old.filter((ping) => ping.userId !== person.id)); setActiveHomeTab("Сообщения"); setSidebarOpen(false); }}><ProfileAvatar profile={person} name={name} className="dm-avatar" /><span className="dm-name">{name}</span>{unreadDms[person.id] ? <b className="dm-unread">{unreadDms[person.id] > 99 ? "99+" : unreadDms[person.id]}</b> : <i/>}</button>; })}
           {!dmContacts.length && <p className="empty-small">Пока нет личных чатов.</p>}
         </div>
         <div className="profile-bar">
-          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={profile} name={currentName} className="avatar self-avatar" /></button><div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
+          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "guest", username: "guest", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button><div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{user ? presenceLabel(presence) : "Гостевой режим"}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>{user ? <LogOut size={17}/> : <Settings size={17}/>}</button>
           <button className={`profile-action ${muted ? "control-active" : ""}`} title={muted ? "Включить микрофон" : "Выключить микрофон"} onClick={() => { setMuted(!muted); showNotice(muted ? "Микрофон включён" : "Микрофон выключен"); }}><Mic size={17}/></button><button className={`profile-action ${deafened ? "control-active" : ""}`} title={deafened ? "Включить звук" : "Выключить звук"} onClick={() => { setDeafened(!deafened); showNotice(deafened ? "Звук включён" : "Звук выключен"); }}><Headphones size={17}/></button>
         </div>
@@ -802,26 +916,27 @@ export default function App() {
           </button>
           {channelMenuOpen && <div className="space-actions-menu">
             {canManageChannels ? <>
+              <button onClick={() => { setServerNameDraft(activeSpace?.name || ""); setServerSettingsOpen(true); setChannelMenuOpen(false); }}><Settings size={16}/> Настройки сервера</button>
               <button onClick={() => { setCreateChannelOpen(true); setChannelMenuOpen(false); }}><Plus size={16}/> Создать канал</button>
-              {activeChannel && <button onClick={() => { setSlowmodeDraft(String(activeChannel.slowmode_seconds || 0)); setChannelSettingsOpen(true); setChannelMenuOpen(false); setSidebarOpen(false); }}><Settings size={16}/> Настройки #{activeChannel.name}</button>}
-              {activeChannel && <button className="danger" onClick={() => { setDeleteChannelOpen(true); setChannelMenuOpen(false); setSidebarOpen(false); }}><Trash2 size={16}/> Удалить #{activeChannel.name}</button>}
-            </> : <p>Управлять каналами может владелец сервера.</p>}
+            </> : <p>Общие настройки сервера может менять только владелец.</p>}
             <button onClick={() => { setCreateSpaceOpen(true); setChannelMenuOpen(false); }}><Plus size={16}/> Создать сервер</button>
           </div>}
         </div>
         <div className="sidebar-scroll">
           <div className="section-heading"><span>ТЕКСТОВЫЕ КАНАЛЫ</span><button title="Создать канал" onClick={() => setCreateChannelOpen(true)}><Plus size={16}/></button></div>
           {channels.length ? channels.map((channel) => (
-            <button key={channel.id} className={`channel-item ${activeChannelId === channel.id ? "active" : ""}`} onClick={() => chooseChannel(channel)}>
-              <Hash size={18}/><span>{channel.name}</span>
-            </button>
+            <div key={channel.id} className={`channel-row ${channelMenuFor === channel.id ? "menu-open" : ""}`}>
+              <button className={`channel-item ${activeChannelId === channel.id ? "active" : ""}`} onClick={() => chooseChannel(channel)}><Hash size={18}/><span>{channel.name}</span></button>
+              {canManageChannels && <button className="channel-settings-button" title={`Настройки #${channel.name}`} onClick={() => setChannelMenuFor((old) => old === channel.id ? "" : channel.id)}><Settings size={15}/></button>}
+              {channelMenuFor === channel.id && <div className="channel-context-menu"><button onClick={() => { chooseChannel(channel); setSlowmodeDraft(String(channel.slowmode_seconds || 0)); setChannelSettingsOpen(true); setChannelMenuFor(""); setSidebarOpen(false); }}><Settings size={15}/> Настройки канала</button><button className="danger" onClick={() => { chooseChannel(channel); setDeleteChannelOpen(true); setChannelMenuFor(""); setSidebarOpen(false); }}><Trash2 size={15}/> Удалить канал</button></div>}
+            </div>
           )) : <p className="empty-small">Пока нет каналов.</p>}
           <button className="channel-item add-channel" onClick={() => setCreateChannelOpen(true)}><Plus size={16}/><span>Добавить канал</span></button>
 
         </div>
         <div className="profile-bar">
-          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={profile} name={currentName} className="avatar self-avatar" /></button>
-          <div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
+          <button type="button" className="profile-avatar-button" title="Сменить аватар" onClick={openAvatarPicker}><ProfileAvatar profile={{ ...(profile || { id: "guest", username: "guest", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
+          <div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{user ? presenceLabel(presence) : "Гостевой режим"}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>
             {user ? <LogOut size={17}/> : <Settings size={17}/>}
           </button>
@@ -830,6 +945,7 @@ export default function App() {
         </div>
       </aside>}
 
+      {dmNotifications}
       {activeView === "home" ? <main className="chat-area home-area">
         <header className="chat-header home-header"><strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
         {activeDm ? <>
@@ -1006,6 +1122,17 @@ export default function App() {
           </label>
           <p className="auth-note">0 — без задержки. Максимум — 21600 секунд (6 часов).</p>
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setChannelSettingsOpen(false)}>Отмена</button><button className="primary-button">Сохранить</button></div>
+        </form>
+      </div>}
+
+      {serverSettingsOpen && activeSpace && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setServerSettingsOpen(false); }}>
+        <form className="modal" onSubmit={saveServerSettings}>
+          <button type="button" className="modal-close" onClick={() => setServerSettingsOpen(false)}><X size={19}/></button>
+          <h2>Настройки сервера</h2>
+          <p className="modal-subtitle">Общие настройки «{activeSpace.name}»</p>
+          <label>Название сервера<input value={serverNameDraft} onChange={(e) => setServerNameDraft(e.target.value)} maxLength={48} required /></label>
+          <p className="auth-note">Новое название увидят все участники сервера.</p>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setServerSettingsOpen(false)}>Отмена</button><button className="primary-button">Сохранить</button></div>
         </form>
       </div>}
 

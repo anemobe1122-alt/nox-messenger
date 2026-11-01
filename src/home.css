@@ -14,7 +14,14 @@
 .dm-item:hover, .dm-item.active { background: #2c2d35; color: #fff; }
 .dm-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800; }
 .dm-name { flex: 1; font-size: 13px; }
-.dm-item i { width: 8px; height: 8px; border-radius: 50%; background: #55d6a0; }
+.dm-unread { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center; color: white; background: #ed4245; font-size: 10px; }
+.dm-notifications { position: fixed; z-index: 70; top: 272px; left: 84px; width: 234px; display: flex; flex-direction: column; gap: 7px; pointer-events: none; }
+.dm-notification { min-width: 0; width: 100%; padding: 9px; border: 1px solid #555762; border-radius: 9px; display: flex; align-items: center; gap: 9px; color: #f2f3f5; background: #202127; box-shadow: 0 8px 24px #0008; text-align: left; pointer-events: auto; animation: dm-notice-in .18s ease-out; }
+.dm-notification > span:nth-child(2) { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.dm-notification strong { font-size: 11px; }
+.dm-notification small { overflow: hidden; color: #b5bac1; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.dm-notification > i { font-size: 17px; font-style: normal; color: #aeb1b7; }
+@keyframes dm-notice-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 .home-area { background: #111216; }
 .home-content { flex: 1; min-height: 0; overflow-y: auto; width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 52px 0; }
 .home-welcome { padding: 30px; border: 1px solid #30313c; border-radius: 15px; background: radial-gradient(ellipse at 90% 0%, #7163c62b, transparent 48%), #191a21; }
@@ -47,9 +54,11 @@
 
 @media (max-width: 1120px) {
   .app-shell.home-shell { grid-template-columns: 68px 220px minmax(280px, 1fr); }
+  .dm-notifications { left: 76px; width: 204px; }
 }
 
 @media (max-width: 760px) {
   .app-shell.home-shell { grid-template-columns: 62px minmax(0, 1fr); }
   .dm-conversation.dm-chat { padding: 13px 12px 16px; }
+  .dm-notifications { top: 112px; left: 70px; width: min(234px, calc(100vw - 80px)); }
 }
