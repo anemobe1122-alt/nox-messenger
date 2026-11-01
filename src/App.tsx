@@ -9,6 +9,7 @@ import {
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null };
+type DmContact = Profile & { conversationId?: string };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
 type Channel = { id: string; server_id: string; name: string; type?: string };
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile };
@@ -40,6 +41,11 @@ const demoMessages: Record<string, Message[]> = {
     { id: "m3", channel_id: "demo-general", user_id: "bot-3", content: "Слева можно переключать серверы и каналы. Попробуй отправить сообщение — оно появится в этой демо-сессии.", created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(), profile: { id: "bot-3", username: "pixel", display_name: "pixel.exe" } }
   ]
 };
+const demoContacts: DmContact[] = [
+  { id: "demo-nox", username: "nox", display_name: "Nox" },
+  { id: "demo-pixel", username: "pixel", display_name: "Pixel" },
+  { id: "demo-night", username: "nightshift", display_name: "Ночная смена" }
+];
 
 function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
@@ -74,6 +80,9 @@ export default function App() {
   const [activeView, setActiveView] = useState<"home" | "server">("server");
   const [activeHomeTab, setActiveHomeTab] = useState("Сообщения");
   const [activeDm, setActiveDm] = useState("");
+  const [dmContacts, setDmContacts] = useState<DmContact[]>(demoContacts);
+  const [peopleResults, setPeopleResults] = useState<Profile[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
   const [dmDraft, setDmDraft] = useState("");
   const [dmMessages, setDmMessages] = useState<Record<string, Message[]>>(() => {
     try { return JSON.parse(localStorage.getItem("nox-dm-messages") || "{}"); } catch { return {}; }
@@ -84,6 +93,9 @@ export default function App() {
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [membersOpen, setMembersOpen] = useState(true);
+
+  const activeDmContact = dmContacts.find((contact) => contact.id === activeDm);
+  const activeDmKey = activeDmContact?.conversationId || activeDm;
 
   const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
   const channels = channelsBySpace[activeSpaceId] || [];
@@ -121,6 +133,25 @@ export default function App() {
       setProfile((inserted || fallback) as Profile);
     }
   }, []);
+
+  const loadDirectContacts = useCallback(async (uid: string) => {
+    if (!supabase) return;
+    setDmContacts([]);
+    const { data: memberships, error } = await supabase.from("direct_conversation_members")
+      .select("conversation_id").eq("user_id", uid);
+    if (error) { showNotice("Не удалось загрузить личные чаты. Примени обновлённую Supabase-схему."); return; }
+    const conversationIds = [...new Set((memberships || []).map((row: any) => row.conversation_id))];
+    if (!conversationIds.length) { setDmContacts([]); return; }
+    const { data: people, error: peopleError } = await supabase.from("direct_conversation_members")
+      .select("conversation_id, user_id, profiles(id, username, display_name, avatar_url)")
+      .in("conversation_id", conversationIds).neq("user_id", uid);
+    if (peopleError) { showNotice("Не удалось загрузить список личных чатов."); return; }
+    const next = (people || []).flatMap((row: any) => {
+      const person = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+      return person ? [{ ...person, conversationId: row.conversation_id } as DmContact] : [];
+    });
+    setDmContacts(next);
+  }, [showNotice]);
 
   const loadSpaces = useCallback(async (uid: string) => {
     if (!supabase) return;
@@ -173,25 +204,86 @@ export default function App() {
       const current = data.session?.user || null;
       setUser(current);
       if (current) {
+        setActiveDm("");
         await loadProfile(current);
         await loadSpaces(current.id);
+        await loadDirectContacts(current.id);
       }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       const current = session?.user || null;
       setUser(current);
-      if (!current) { setProfile(null); setSpaces([]); setChannelsBySpace({}); }
+      if (!current) { setProfile(null); setSpaces(demoSpaces); setChannelsBySpace(demoChannels); setDmContacts(demoContacts); setActiveDm(""); }
       else {
+        setActiveDm("");
         window.setTimeout(async () => {
           await loadProfile(current);
           await loadSpaces(current.id);
+          await loadDirectContacts(current.id);
         }, 0);
       }
     });
     return () => listener.subscription.unsubscribe();
-  }, [loadProfile, loadSpaces]);
+  }, [loadProfile, loadSpaces, loadDirectContacts]);
 
   useEffect(() => { loadMessages(activeChannelId); }, [activeChannelId, loadMessages]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!searchOpen || !supabase || !user || query.length < 2) { setPeopleResults([]); setPeopleLoading(false); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setPeopleLoading(true);
+      const [byUsername, byName] = await Promise.all([
+        supabase!.from("profiles").select("id, username, display_name, avatar_url").neq("id", user.id).ilike("username", `%${query}%`).limit(20),
+        supabase!.from("profiles").select("id, username, display_name, avatar_url").neq("id", user.id).ilike("display_name", `%${query}%`).limit(20)
+      ]);
+      if (cancelled) return;
+      if (byUsername.error || byName.error) showNotice("Не удалось найти пользователей. Проверь подключение Supabase.");
+      const unique = new Map<string, Profile>();
+      for (const person of [...(byUsername.data || []), ...(byName.data || [])] as Profile[]) unique.set(person.id, person);
+      setPeopleResults([...unique.values()].slice(0, 20));
+      setPeopleLoading(false);
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [searchOpen, searchQuery, user, showNotice]);
+
+  useEffect(() => {
+    if (!activeDm || !user || !activeDmContact?.conversationId || !supabase) {
+      if (activeDm) {
+        try {
+          const local = JSON.parse(localStorage.getItem(`nox-dm-${activeDmKey}`) || "[]");
+          setDmMessages((old) => ({ ...old, [activeDmKey]: local }));
+        } catch { /* Ignore invalid local direct-message data. */ }
+      }
+      return;
+    }
+    let cancelled = false;
+    const conversationId = activeDmContact.conversationId;
+    (async () => {
+      const { data, error } = await supabase!.from("direct_messages")
+        .select("id, conversation_id, user_id, content, created_at, profiles(id, username, display_name, avatar_url)")
+        .eq("conversation_id", conversationId).order("created_at", { ascending: true }).limit(200);
+      if (cancelled) return;
+      if (error) { showNotice("Не удалось загрузить сообщения. Примени обновлённую Supabase-схему."); return; }
+      const rows = (data || []).map((m: any) => ({
+        ...m, channel_id: conversationId,
+        profile: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
+      })) as Message[];
+      setDmMessages((old) => ({ ...old, [conversationId]: rows }));
+    })();
+    const channel = supabase.channel(`direct-messages:${conversationId}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "direct_messages",
+        filter: `conversation_id=eq.${conversationId}`
+      }, async (payload) => {
+        const row = payload.new as any;
+        const { data: person } = await supabase!.from("profiles").select("id, username, display_name, avatar_url").eq("id", row.user_id).maybeSingle();
+        const message = { ...row, channel_id: conversationId, profile: person as Profile | undefined } as Message;
+        setDmMessages((old) => ({ ...old, [conversationId]: (old[conversationId] || []).some((m) => m.id === message.id) ? old[conversationId] : [...(old[conversationId] || []), message] }));
+      }).subscribe();
+    return () => { cancelled = true; supabase!.removeChannel(channel); };
+  }, [activeDm, activeDmContact?.conversationId, activeDmKey, user, showNotice]);
 
   useEffect(() => {
     if (!supabase || !activeChannelId || activeChannelId.startsWith("demo-")) return;
@@ -245,9 +337,11 @@ export default function App() {
           options: { data: { display_name: authName.trim() || authEmail.split("@")[0] } }
         });
         if (error) throw error;
-        if (data.session) {
+        if (data.session && data.user) {
           setUser(data.user);
           await loadProfile(data.user);
+          await loadSpaces(data.user.id);
+          await loadDirectContacts(data.user.id);
           showNotice("Аккаунт создан. Добро пожаловать в Nox!");
           setShowAuth(false);
         } else {
@@ -270,19 +364,50 @@ export default function App() {
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
     setUser(null); setProfile(null); setSpaces(demoSpaces); setChannelsBySpace(demoChannels);
+    setDmContacts(demoContacts); setActiveDm("");
     setActiveSpaceId("demo-lobby"); setActiveChannelId("demo-general");
     showNotice("Ты вышел из аккаунта.");
   }
 
-  function sendDm(e: FormEvent) {
+  async function openDirectChat(person: Profile) {
+    if (!supabase || !user) {
+      setAuthMode("signup"); setShowAuth(true);
+      showNotice("Войди в аккаунт, чтобы искать пользователей и писать им.");
+      return;
+    }
+    if (person.id === user.id) return;
+    let conversationId = dmContacts.find((contact) => contact.id === person.id)?.conversationId;
+    if (!conversationId) {
+      const { data, error } = await supabase.rpc("create_or_get_direct_conversation", { target_user_id: person.id });
+      if (error || !data) { showNotice("Не удалось открыть чат. Обнови Supabase-схему из файла supabase/schema.sql."); return; }
+      conversationId = data as string;
+    }
+    const contact = { ...person, conversationId } as DmContact;
+    setDmContacts((old) => [contact, ...old.filter((item) => item.id !== person.id)]);
+    setActiveDm(person.id); setActiveView("home"); setActiveHomeTab("Сообщения"); setSearchOpen(false); setSidebarOpen(false);
+  }
+
+  async function sendDm(e: FormEvent) {
     e.preventDefault();
     const content = dmDraft.trim();
-    if (!content || !activeDm) return;
+    if (!content || !activeDm || !activeDmContact) return;
+    if (supabase && user && activeDmContact.conversationId) {
+      const { error } = await supabase.from("direct_messages").insert({
+        conversation_id: activeDmContact.conversationId, user_id: user.id, content
+      });
+      if (error) { showNotice("Сообщение не отправлено. Возможно, у тебя нет доступа к чату."); return; }
+      setDmDraft("");
+      return;
+    }
     const item: Message = {
       id: crypto.randomUUID(), channel_id: `dm-${activeDm}`, user_id: "you", content,
       created_at: new Date().toISOString(), profile: { id: "you", username: "you", display_name: currentName }
     };
-    setDmMessages((old) => ({ ...old, [activeDm]: [...(old[activeDm] || []), item] }));
+    setDmMessages((old) => {
+      const next = { ...old, [activeDmKey]: [...(old[activeDmKey] || []), item] };
+      localStorage.setItem(`nox-dm-${activeDmKey}`, JSON.stringify(next[activeDmKey]));
+      return next;
+    });
     setDmDraft("");
   }
 
@@ -391,7 +516,8 @@ export default function App() {
         </nav>
         <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setSearchOpen(true)}><Plus size={18}/></button></div>
         <div className="dm-list">
-          {[{name:"Nox", initials:"N", color:"#9383f5"},{name:"Pixel", initials:"PX", color:"#57b9a2"},{name:"Ночная смена", initials:"Н", color:"#db9b5e"}].map((person) => <button key={person.name} className={`dm-item ${activeDm === person.name ? "active" : ""}`} onClick={() => { setActiveDm(person.name); setActiveHomeTab("Сообщения"); }}><span className="dm-avatar" style={{background:person.color}}>{person.initials}</span><span className="dm-name">{person.name}</span><i/></button>)}
+          {dmContacts.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className={`dm-item ${activeDm === person.id ? "active" : ""}`} onClick={() => { setActiveDm(person.id); setActiveHomeTab("Сообщения"); }}><span className="dm-avatar">{initials(name)}</span><span className="dm-name">{name}</span><i/></button>; })}
+          {!dmContacts.length && <p className="empty-small">Пока нет личных чатов.</p>}
         </div>
         <div className="profile-bar">
           <div className="avatar self-avatar">{initials(currentName)}</div><div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
@@ -429,10 +555,10 @@ export default function App() {
       </aside>}
 
       {activeView === "home" ? <main className="chat-area home-area">
-        <header className="chat-header home-header"><button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button><strong>{activeDm || activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
-        {activeDm ? <><div className="dm-conversation dm-chat"><div className="dm-conversation-avatar">{activeDm === "Nox" ? "n" : initials(activeDm)}</div><h1>{activeDm}</h1><p>Это начало вашей беседы.</p>{(dmMessages[activeDm] || []).map((m) => <article className="message-row" key={m.id}><div className="avatar message-avatar own">{initials(currentName)}</div><div className="message-body"><div className="message-meta"><strong>{currentName}</strong><time>{timeLabel(m.created_at)}</time></div><p>{m.content}</p></div></article>)}</div><div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDm}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div></> : <div className="home-content">
-          <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Выбери собеседника из списка слева или найди новых друзей." : "Общайся, открывай сообщества и оставайся на связи."}</p><button onClick={() => setActiveHomeTab("Друзья")}><UserRound size={17}/> Найти друзей</button></div>
-          <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => setActiveDm("Nox")}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { if (spaces[0]) { setActiveView("server"); chooseSpace(spaces[0]); } else setCreateSpaceOpen(true); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
+        <header className="chat-header home-header"><button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button><strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
+        {activeDm ? <><div className="dm-conversation dm-chat"><div className="dm-conversation-avatar">{initials(activeDmContact?.display_name || activeDmContact?.username || "N")}</div><h1>{activeDmContact?.display_name || activeDmContact?.username || "Личные сообщения"}</h1><p>Начало вашей переписки.</p>{(dmMessages[activeDmKey] || []).map((m) => { const isOwn = m.user_id === user?.id || m.user_id === "you"; const sender = isOwn ? currentName : (m.profile?.display_name || m.profile?.username || activeDmContact?.display_name || "Пользователь"); return <article className="message-row" key={m.id}><div className={`avatar message-avatar ${isOwn ? "own" : ""}`}>{initials(sender)}</div><div className="message-body"><div className="message-meta"><strong>{sender}</strong><time>{timeLabel(m.created_at)}</time></div><p>{m.content}</p></div></article>; })}</div><div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div></> : <div className="home-content">
+          <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Выбери собеседника из списка слева или найди новых друзей." : "Общайся, открывай сообщества и оставайся на связи."}</p><button onClick={() => setSearchOpen(true)}><UserRound size={17}/> Найти друзей</button></div>
+          <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => { if (dmContacts[0]) setActiveDm(dmContacts[0].id); else setSearchOpen(true); }}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { if (spaces[0]) { setActiveView("server"); chooseSpace(spaces[0]); } else setCreateSpaceOpen(true); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
         </div>}
       </main> : <main className="chat-area">
         <header className="chat-header">
@@ -444,7 +570,7 @@ export default function App() {
           <div className="header-actions">
             <button className={notificationsOn ? "" : "control-active"} title={notificationsOn ? "Отключить уведомления канала" : "Включить уведомления канала"} onClick={() => { setNotificationsOn(!notificationsOn); showNotice(notificationsOn ? "Уведомления канала отключены" : "Уведомления канала включены"); }}><Bell size={19}/></button>
             <button title="Участники" onClick={() => setMembersOpen(!membersOpen)}><Users size={19}/></button>
-            <button title="Личные сообщения" onClick={() => { setActiveView("home"); setActiveDm("Nox"); setSidebarOpen(false); }}><MessageCircle size={19}/></button>
+            <button title="Личные сообщения" onClick={() => { setActiveView("home"); setActiveDm(dmContacts[0]?.id || ""); setSidebarOpen(false); if (!dmContacts.length) setSearchOpen(true); }}><MessageCircle size={19}/></button>
             <button title="Поиск по сообщениям" onClick={() => setSearchOpen(true)}><Search size={19}/></button>
           </div>
         </header>
@@ -507,7 +633,7 @@ export default function App() {
       </aside>}
 
       {searchOpen && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setSearchOpen(false); }}>
-        <div className="modal search-modal"><button type="button" className="modal-close" onClick={() => setSearchOpen(false)}><X size={19}/></button><h2>Поиск и беседы</h2><label>Поиск по сообщениям<input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Что ищем?"/></label><div className="search-results"><strong className="search-label">НАЧАТЬ ЛИЧНУЮ БЕСЕДУ</strong>{["Nox", "Pixel", "Ночная смена"].map((person) => <button key={person} className="search-result contact-result" onClick={() => { setActiveView("home"); setActiveDm(person); setActiveHomeTab("Сообщения"); setSearchOpen(false); }}><strong>{person}</strong><span>Открыть личные сообщения</span></button>)}<strong className="search-label">СООБЩЕНИЯ</strong>{searchQuery.trim() && !searchResults.length && <p className="empty-small">Совпадений в доступных сообщениях нет.</p>}{searchResults.map((m) => <button key={`${m.channel_id}-${m.id}`} className="search-result" onClick={() => { const target = spaces.flatMap((s) => channelsBySpace[s.id] || []).find((c) => c.id === m.channel_id); if (target) { setActiveView("server"); setActiveSpaceId(target.server_id); setActiveChannelId(target.id); } else showNotice(`Сообщение из канала #${m.channel_id.replace(/^demo-/, "")}`); setSearchOpen(false); }}><strong>#{(channels.find((c) => c.id === m.channel_id)?.name || m.channel_id.replace(/^demo-/, ""))}</strong><span>{m.content}</span></button>)}</div></div>
+        <div className="modal search-modal"><button type="button" className="modal-close" onClick={() => setSearchOpen(false)}><X size={19}/></button><h2>Поиск пользователей</h2><label>Ник или отображаемое имя<input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Например, player123"/></label><div className="search-results"><strong className="search-label">ЗАРЕГИСТРИРОВАННЫЕ ПОЛЬЗОВАТЕЛИ</strong>{!user && <div className="search-empty"><p>Войди в аккаунт, чтобы искать людей и переписываться с ними.</p><button className="primary-button" onClick={() => { setSearchOpen(false); setAuthMode("signin"); setShowAuth(true); }}>Войти в аккаунт</button></div>}{user && searchQuery.trim().length < 2 && <p className="empty-small">Введи хотя бы 2 символа для поиска.</p>}{user && peopleLoading && <p className="empty-small">Ищу пользователей…</p>}{user && searchQuery.trim().length >= 2 && !peopleLoading && !peopleResults.length && <p className="empty-small">Никого не нашёл. Проверь написание.</p>}{user && peopleResults.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className="search-result contact-result" onClick={() => void openDirectChat(person)}><span className="dm-avatar">{initials(name)}</span><span className="person-result-copy"><strong>{name}</strong><small>@{person.username}</small></span><span className="person-message-action">Написать</span></button>; })}<strong className="search-label">ПОИСК ПО СООБЩЕНИЯМ</strong>{searchResults.map((m) => <button key={`${m.channel_id}-${m.id}`} className="search-result" onClick={() => { const target = spaces.flatMap((s) => channelsBySpace[s.id] || []).find((c) => c.id === m.channel_id); if (target) { setActiveView("server"); setActiveSpaceId(target.server_id); setActiveChannelId(target.id); } else showNotice(`Сообщение из канала #${m.channel_id.replace(/^demo-/, "")}`); setSearchOpen(false); }}><strong>#{(channels.find((c) => c.id === m.channel_id)?.name || m.channel_id.replace(/^demo-/, ""))}</strong><span>{m.content}</span></button>)}</div></div>
       </div>}
 
       {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}

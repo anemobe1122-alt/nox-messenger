@@ -9,11 +9,12 @@ Nox is a Discord-inspired dark web messenger starter built with React, TypeScrip
 - Supabase email/password sign-up and sign-in UI
 - Profile loading, server and channel creation
 - Message persistence and realtime inserts for channel messages
+- Search registered users by username or display name and start private conversations
+- Direct messages stored in Supabase with membership-based Row Level Security and realtime updates
 - PostgreSQL schema and Row Level Security (RLS) starter policies
 
 ## Important current limits
 
-- Personal / direct messages are not implemented in this starter yet; the header action is a placeholder.
 - Server invitations and joining other users' servers are not implemented yet.
 - The included SQL is a starter, not a complete security audit. Before public production use, add an invitation/join flow and review RLS carefully. The starter only allows a server owner to add their own initial membership; other users cannot join until an invitation/join flow is implemented.
 - Demo messages are local to the browser and are not shared.
@@ -38,6 +39,7 @@ The app runs in demo mode until Supabase credentials are added.
 1. Open https://supabase.com and create a project.
 2. In the project dashboard, open **SQL Editor**.
 3. Copy and run the entire contents of `supabase/schema.sql`.
+   - If the core schema is already installed, run `supabase/direct-messages.sql` instead to add private conversations without recreating the existing tables.
 4. Open **Project Settings → API** (or the project's API keys page) and copy the Project URL and publishable/anon key.
 5. Put those values in `.env.local`:
 
