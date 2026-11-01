@@ -74,6 +74,16 @@ export default function App() {
   const [activeView, setActiveView] = useState<"home" | "server">("server");
   const [activeHomeTab, setActiveHomeTab] = useState("Сообщения");
   const [activeDm, setActiveDm] = useState("");
+  const [dmDraft, setDmDraft] = useState("");
+  const [dmMessages, setDmMessages] = useState<Record<string, Message[]>>(() => {
+    try { return JSON.parse(localStorage.getItem("nox-dm-messages") || "{}"); } catch { return {}; }
+  });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [notificationsOn, setNotificationsOn] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const [deafened, setDeafened] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(true);
 
   const activeSpace = spaces.find((s) => s.id === activeSpaceId) || spaces[0];
   const channels = channelsBySpace[activeSpaceId] || [];
@@ -83,6 +93,22 @@ export default function App() {
     setNotice(text);
     window.setTimeout(() => setNotice(""), 3500);
   }, []);
+
+  useEffect(() => {
+    try {
+      const savedSpaces = localStorage.getItem("nox-spaces");
+      const savedChannels = localStorage.getItem("nox-channels");
+      if (savedSpaces) setSpaces(JSON.parse(savedSpaces));
+      if (savedChannels) setChannelsBySpace(JSON.parse(savedChannels));
+    } catch { /* Ignore invalid local demo data. */ }
+  }, []);
+  useEffect(() => {
+    if (!supabase) {
+      localStorage.setItem("nox-spaces", JSON.stringify(spaces));
+      localStorage.setItem("nox-channels", JSON.stringify(channelsBySpace));
+    }
+  }, [spaces, channelsBySpace]);
+  useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
 
   const loadProfile = useCallback(async (authUser: any) => {
     if (!supabase || !authUser) return;
@@ -128,8 +154,10 @@ export default function App() {
 
   const loadMessages = useCallback(async (channelId: string) => {
     if (!channelId) { setMessages([]); return; }
-    if (!supabase || channelId.startsWith("demo-")) {
-      setMessages(demoMessages[channelId] || []);
+    if (!supabase || channelId.startsWith("demo-") || channelId.startsWith("local-")) {
+      let saved: Message[] = [];
+      try { saved = JSON.parse(localStorage.getItem(`nox-messages-${channelId}`) || "[]"); } catch { /* Ignore invalid local message data. */ }
+      setMessages(saved.length ? saved : demoMessages[channelId] || []);
       return;
     }
     const { data, error } = await supabase.from("messages")
@@ -246,6 +274,18 @@ export default function App() {
     showNotice("Ты вышел из аккаунта.");
   }
 
+  function sendDm(e: FormEvent) {
+    e.preventDefault();
+    const content = dmDraft.trim();
+    if (!content || !activeDm) return;
+    const item: Message = {
+      id: crypto.randomUUID(), channel_id: `dm-${activeDm}`, user_id: "you", content,
+      created_at: new Date().toISOString(), profile: { id: "you", username: "you", display_name: currentName }
+    };
+    setDmMessages((old) => ({ ...old, [activeDm]: [...(old[activeDm] || []), item] }));
+    setDmDraft("");
+  }
+
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
     const content = draft.trim();
@@ -257,6 +297,8 @@ export default function App() {
         profile: { id: "you", username: "you", display_name: "Ты" }
       };
       setMessages((old) => [...old, local]);
+      const next = [...messages, local];
+      localStorage.setItem(`nox-messages-${activeChannel.id}`, JSON.stringify(next));
       setDraft("");
       return;
     }
@@ -272,7 +314,13 @@ export default function App() {
     const name = newSpaceName.trim();
     if (!name) return;
     if (!supabase || !user) {
-      showNotice("Чтобы создать настоящий сервер, сначала подключи Supabase и войди в аккаунт.");
+      const space: Space = { id: `local-${crypto.randomUUID()}`, name };
+      const channel: Channel = { id: `local-${crypto.randomUUID()}`, server_id: space.id, name: "общий", type: "text" };
+      setSpaces((old) => [...old, space]);
+      setChannelsBySpace((old) => ({ ...old, [space.id]: [channel] }));
+      setActiveSpaceId(space.id); setActiveChannelId(channel.id); setActiveView("server");
+      setNewSpaceName(""); setCreateSpaceOpen(false);
+      showNotice(`Сервер «${name}» создан в этом браузере.`);
       return;
     }
     const slug = name.toLowerCase().replace(/[^a-zа-яё0-9_-]+/gi, "-").replace(/^-|-$/g, "").slice(0, 40) || "general";
@@ -292,9 +340,13 @@ export default function App() {
   async function createChannel(e: FormEvent) {
     e.preventDefault();
     const name = newChannelName.trim().toLowerCase().replace(/\s+/g, "-");
-    if (!name || !activeSpace) return;
-    if (!supabase || !user || activeSpace.id.startsWith("demo-")) {
-      showNotice("Войди в аккаунт, чтобы создавать настоящие каналы.");
+    if (!name) return;
+    if (!activeSpace) { setCreateChannelOpen(false); setCreateSpaceOpen(true); showNotice("Сначала создай сервер."); return; }
+    if (!supabase || !user || activeSpace.id.startsWith("demo-") || activeSpace.id.startsWith("local-")) {
+      const channel: Channel = { id: `local-${crypto.randomUUID()}`, server_id: activeSpace.id, name, type: "text" };
+      setChannelsBySpace((old) => ({ ...old, [activeSpace.id]: [...(old[activeSpace.id] || []), channel] }));
+      setActiveChannelId(channel.id); setNewChannelName(""); setCreateChannelOpen(false);
+      showNotice(`Канал #${name} создан.`);
       return;
     }
     const { data, error } = await supabase.from("channels")
@@ -306,10 +358,16 @@ export default function App() {
   }
 
   const visibleMessages = useMemo(() => messages, [messages]);
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLocaleLowerCase();
+    if (!q) return [];
+    const all = [...Object.values(demoMessages).flat(), ...messages];
+    return all.filter((m, i) => all.findIndex((x) => x.id === m.id) === i && m.content.toLocaleLowerCase().includes(q)).slice(0, 20);
+  }, [messages, searchQuery]);
   const currentName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "Гость";
 
   return (
-    <div className={`app-shell ${activeView === "home" ? "home-shell" : ""}`}>
+    <div className={`app-shell ${activeView === "home" ? "home-shell" : ""} ${!membersOpen ? "members-hidden" : ""}`}>
       <aside className={`server-rail ${sidebarOpen ? "rail-open" : ""}`}>
         <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""}`} title="Главная" onClick={() => { setActiveView("home"); setActiveHomeTab("Сообщения"); setActiveDm(""); setSidebarOpen(false); }}>
           <span className="brand-glyph">n</span>
@@ -322,26 +380,26 @@ export default function App() {
           </button>
         ))}
         <button className="server-icon add-server" title="Создать сервер" onClick={() => setCreateSpaceOpen(true)}><Plus size={22} /></button>
-        <button className="server-icon explore" title="Обзор"><Compass size={20} /></button>
-        <div className="rail-bottom"><button className="tiny-icon" title="Настройки"><Settings size={19} /></button></div>
+        <button className="server-icon explore" title="Обзор сообществ" onClick={() => showNotice("Обзор сообществ: здесь появятся открытые серверы.")}><Compass size={20} /></button>
+        <div className="rail-bottom"><button className="tiny-icon" title="Настройки профиля" onClick={() => showNotice(`Ты вошёл как ${currentName}. ${user ? "Настройки аккаунта доступны после подключения Supabase." : "Демо-режим сохраняет данные в этом браузере."}`)}><Settings size={19} /></button></div>
       </aside>
 
       {activeView === "home" ? <aside className={`channel-sidebar home-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
-        <button className="home-search" onClick={() => setActiveHomeTab("Найти беседу")}><Search size={17}/><span>Найти или начать беседу</span></button>
+        <button className="home-search" onClick={() => setSearchOpen(true)}><Search size={17}/><span>Найти или начать беседу</span></button>
         <nav className="home-nav">
-          {[{label:"Друзья", icon:<UserRound size={19}/>},{label:"Nitro", icon:<Sparkles size={19}/>},{label:"Магазин", icon:<Store size={19}/>},{label:"Задания", icon:<ListTodo size={19}/>}].map((item) => <button key={item.label} className={`home-nav-item ${activeHomeTab === item.label ? "active" : ""}`} onClick={() => setActiveHomeTab(item.label)}>{item.icon}<span>{item.label}</span>{item.label === "Nitro" && <small>ПРЕДЛОЖЕНИЕ</small>}</button>)}
+          {[{label:"Друзья", icon:<UserRound size={19}/>},{label:"Nitro", icon:<Sparkles size={19}/>},{label:"Магазин", icon:<Store size={19}/>},{label:"Задания", icon:<ListTodo size={19}/>}].map((item) => <button key={item.label} className={`home-nav-item ${activeHomeTab === item.label ? "active" : ""}`} onClick={() => { setActiveHomeTab(item.label); setActiveDm(""); }}>{item.icon}<span>{item.label}</span>{item.label === "Nitro" && <small>ПРЕДЛОЖЕНИЕ</small>}</button>)}
         </nav>
-        <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setActiveHomeTab("Новая беседа")}><Plus size={18}/></button></div>
+        <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setSearchOpen(true)}><Plus size={18}/></button></div>
         <div className="dm-list">
           {[{name:"Nox", initials:"N", color:"#9383f5"},{name:"Pixel", initials:"PX", color:"#57b9a2"},{name:"Ночная смена", initials:"Н", color:"#db9b5e"}].map((person) => <button key={person.name} className={`dm-item ${activeDm === person.name ? "active" : ""}`} onClick={() => { setActiveDm(person.name); setActiveHomeTab("Сообщения"); }}><span className="dm-avatar" style={{background:person.color}}>{person.initials}</span><span className="dm-name">{person.name}</span><i/></button>)}
         </div>
         <div className="profile-bar">
           <div className="avatar self-avatar">{initials(currentName)}</div><div className="profile-copy"><strong>{currentName}</strong><span>{user ? "В сети" : "Гостевой режим"}</span></div>
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>{user ? <LogOut size={17}/> : <Settings size={17}/>}</button>
-          <button className="profile-action" title="Микрофон"><Mic size={17}/></button><button className="profile-action" title="Звук"><Headphones size={17}/></button>
+          <button className={`profile-action ${muted ? "control-active" : ""}`} title={muted ? "Включить микрофон" : "Выключить микрофон"} onClick={() => { setMuted(!muted); showNotice(muted ? "Микрофон включён" : "Микрофон выключен"); }}><Mic size={17}/></button><button className={`profile-action ${deafened ? "control-active" : ""}`} title={deafened ? "Включить звук" : "Выключить звук"} onClick={() => { setDeafened(!deafened); showNotice(deafened ? "Звук включён" : "Звук выключен"); }}><Headphones size={17}/></button>
         </div>
       </aside> : <aside className={`channel-sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
-        <button className="space-heading" onClick={() => showNotice("Настройки сервера появятся в следующем обновлении.")}>
+        <button className="space-heading" onClick={() => setCreateSpaceOpen(true)} title="Открыть действия сервера">
           <span>{activeSpace?.name || "Твои серверы"}</span><ChevronDown size={17} />
         </button>
         <div className="sidebar-scroll">
@@ -365,16 +423,16 @@ export default function App() {
           <button className="profile-action" title={user ? "Выйти" : "Войти"} onClick={() => user ? signOut() : (setAuthMode("signup"), setShowAuth(true))}>
             {user ? <LogOut size={17}/> : <Settings size={17}/>}
           </button>
-          <button className="profile-action" title="Микрофон"><Mic size={17}/></button>
-          <button className="profile-action" title="Звук"><Headphones size={17}/></button>
+          <button className={`profile-action ${muted ? "control-active" : ""}`} title={muted ? "Включить микрофон" : "Выключить микрофон"} onClick={() => { setMuted(!muted); showNotice(muted ? "Микрофон включён" : "Микрофон выключен"); }}><Mic size={17}/></button>
+          <button className={`profile-action ${deafened ? "control-active" : ""}`} title={deafened ? "Включить звук" : "Выключить звук"} onClick={() => { setDeafened(!deafened); showNotice(deafened ? "Звук включён" : "Звук выключен"); }}><Headphones size={17}/></button>
         </div>
       </aside>}
 
       {activeView === "home" ? <main className="chat-area home-area">
-        <header className="chat-header home-header"><button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button><strong>{activeDm || activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Новая беседа" onClick={() => setActiveHomeTab("Новая беседа")}><CirclePlus size={19}/></button></div></header>
-        {activeDm ? <div className="dm-conversation"><div className="dm-conversation-avatar">{activeDm === "Nox" ? "n" : initials(activeDm)}</div><h1>{activeDm}</h1><p>Это начало вашей беседы.</p><div className="dm-empty-note"><MessageSquare size={18}/> Здесь появятся ваши личные сообщения.</div></div> : <div className="home-content">
+        <header className="chat-header home-header"><button className="mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button><strong>{activeDm || activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
+        {activeDm ? <><div className="dm-conversation dm-chat"><div className="dm-conversation-avatar">{activeDm === "Nox" ? "n" : initials(activeDm)}</div><h1>{activeDm}</h1><p>Это начало вашей беседы.</p>{(dmMessages[activeDm] || []).map((m) => <article className="message-row" key={m.id}><div className="avatar message-avatar own">{initials(currentName)}</div><div className="message-body"><div className="message-meta"><strong>{currentName}</strong><time>{timeLabel(m.created_at)}</time></div><p>{m.content}</p></div></article>)}</div><div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDm}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div></> : <div className="home-content">
           <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Выбери собеседника из списка слева или найди новых друзей." : "Общайся, открывай сообщества и оставайся на связи."}</p><button onClick={() => setActiveHomeTab("Друзья")}><UserRound size={17}/> Найти друзей</button></div>
-          <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => setActiveDm("Nox")}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { setActiveView("server"); chooseSpace(spaces[0]); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
+          <div className="home-section-title"><strong>БЫСТРЫЙ СТАРТ</strong></div><div className="home-cards"><button onClick={() => setActiveDm("Nox")}><span className="quick-icon purple"><MessageSquare size={20}/></span><strong>Личные сообщения</strong><small>Продолжи беседу</small></button><button onClick={() => { if (spaces[0]) { setActiveView("server"); chooseSpace(spaces[0]); } else setCreateSpaceOpen(true); }}><span className="quick-icon green"><Compass size={20}/></span><strong>Твои серверы</strong><small>Вернись в сообщество</small></button></div>
         </div>}
       </main> : <main className="chat-area">
         <header className="chat-header">
@@ -384,10 +442,10 @@ export default function App() {
           <div className="header-divider"/>
           <span className="header-topic">Место для хороших разговоров.</span>
           <div className="header-actions">
-            <button title="Уведомления" onClick={() => showNotice("Уведомления добавим позже.")}><Bell size={19}/></button>
-            <button title="Участники" onClick={() => showNotice(user ? `Участников в сервере: ${members.length || "—"}` : "Войди, чтобы увидеть участников.")}><Users size={19}/></button>
-            <button title="Личные сообщения" onClick={() => showNotice("Личные сообщения — следующий этап разработки.")}><MessageCircle size={19}/></button>
-            <button title="Поиск" onClick={() => showNotice("Поиск по сообщениям добавим позже.")}><Search size={19}/></button>
+            <button className={notificationsOn ? "" : "control-active"} title={notificationsOn ? "Отключить уведомления канала" : "Включить уведомления канала"} onClick={() => { setNotificationsOn(!notificationsOn); showNotice(notificationsOn ? "Уведомления канала отключены" : "Уведомления канала включены"); }}><Bell size={19}/></button>
+            <button title="Участники" onClick={() => setMembersOpen(!membersOpen)}><Users size={19}/></button>
+            <button title="Личные сообщения" onClick={() => { setActiveView("home"); setActiveDm("Nox"); setSidebarOpen(false); }}><MessageCircle size={19}/></button>
+            <button title="Поиск по сообщениям" onClick={() => setSearchOpen(true)}><Search size={19}/></button>
           </div>
         </header>
 
@@ -421,7 +479,7 @@ export default function App() {
 
         <div className="composer-wrap">
           <form className="composer" onSubmit={sendMessage}>
-            <button type="button" className="composer-plus" title="Прикрепить файл" onClick={() => showNotice("Загрузка файлов появится в следующей версии.")}><Plus size={22}/></button>
+            <label className="composer-plus" title="Прикрепить файл"><Plus size={22}/><input type="file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setDraft((d) => `${d}${d ? " " : ""}[Файл: ${file.name}]`); e.currentTarget.value = ""; }}/></label>
             <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Написать в #${activeChannel?.name || "канал"}`} aria-label="Сообщение" />
             <button type="button" className="composer-tool" title="Эмодзи" onClick={() => setDraft((d) => d + " ✨")}>☺</button>
             <button className="send-button" type="submit" disabled={!draft.trim()} title="Отправить"><Send size={18}/></button>
@@ -430,7 +488,7 @@ export default function App() {
         </div>
       </main>}
 
-      {activeView === "server" && <aside className="member-sidebar">
+      {activeView === "server" && membersOpen && <aside className="member-sidebar">
         <div className="member-heading">УЧАСТНИКИ — {user ? members.length : "—"}</div>
         {user && members.length ? members.map((person) => (
           <div className="member-row" key={person.id}>
@@ -447,6 +505,10 @@ export default function App() {
         )}
         <div className="right-tip"><span className="tip-spark">✦</span><strong>Маленький совет</strong><p>Создай отдельный канал для каждой темы — так разговоры будет проще находить.</p></div>
       </aside>}
+
+      {searchOpen && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setSearchOpen(false); }}>
+        <div className="modal search-modal"><button type="button" className="modal-close" onClick={() => setSearchOpen(false)}><X size={19}/></button><h2>Поиск и беседы</h2><label>Поиск по сообщениям<input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Что ищем?"/></label><div className="search-results"><strong className="search-label">НАЧАТЬ ЛИЧНУЮ БЕСЕДУ</strong>{["Nox", "Pixel", "Ночная смена"].map((person) => <button key={person} className="search-result contact-result" onClick={() => { setActiveView("home"); setActiveDm(person); setActiveHomeTab("Сообщения"); setSearchOpen(false); }}><strong>{person}</strong><span>Открыть личные сообщения</span></button>)}<strong className="search-label">СООБЩЕНИЯ</strong>{searchQuery.trim() && !searchResults.length && <p className="empty-small">Совпадений в доступных сообщениях нет.</p>}{searchResults.map((m) => <button key={`${m.channel_id}-${m.id}`} className="search-result" onClick={() => { const target = spaces.flatMap((s) => channelsBySpace[s.id] || []).find((c) => c.id === m.channel_id); if (target) { setActiveView("server"); setActiveSpaceId(target.server_id); setActiveChannelId(target.id); } else showNotice(`Сообщение из канала #${m.channel_id.replace(/^demo-/, "")}`); setSearchOpen(false); }}><strong>#{(channels.find((c) => c.id === m.channel_id)?.name || m.channel_id.replace(/^demo-/, ""))}</strong><span>{m.content}</span></button>)}</div></div>
+      </div>}
 
       {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
 
