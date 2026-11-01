@@ -120,7 +120,6 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("nox-dm-messages") || "{}"); } catch { return {}; }
   });
   const [unreadDms, setUnreadDms] = useState<Record<string, number>>({});
-  const [dmPings, setDmPings] = useState<{ id: string; conversationId: string; userId: string; sender: string; content: string; avatar_url?: string | null }[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationsOn, setNotificationsOn] = useState(true);
@@ -409,7 +408,6 @@ export default function App() {
             if (row.user_id === user.id) return;
             const { data: person } = await supabase!.from("profiles")
               .select("id, username, display_name, avatar_url, presence_status").eq("id", row.user_id).maybeSingle();
-            const sender = person?.display_name || person?.username || (contact.display_name || contact.username);
             const message = { ...row, channel_id: conversationId, profile: person as Profile | undefined } as Message;
             setDmMessages((old) => ({
               ...old,
@@ -417,16 +415,11 @@ export default function App() {
                 ? old[conversationId] : [...(old[conversationId] || []), message]
             }));
             setUnreadDms((old) => ({ ...old, [contact.id]: (old[contact.id] || 0) + 1 }));
-            if (presence !== "dnd") {
-              const ping = { id: message.id, conversationId, userId: contact.id, sender, content: message.content, avatar_url: person?.avatar_url };
-              setDmPings((old) => [...old.filter((item) => item.id !== ping.id), ping].slice(-3));
-              window.setTimeout(() => setDmPings((old) => old.filter((item) => item.id !== ping.id)), 7000);
-            }
           })
           .subscribe();
       });
     return () => { channels.forEach((channel) => void supabase!.removeChannel(channel)); };
-  }, [dmContacts, activeDmContact?.conversationId, activeView, user, presence]);
+  }, [dmContacts, activeDmContact?.conversationId, activeView, user]);
 
   useEffect(() => {
     if (!activeDmContact) return;
@@ -436,7 +429,6 @@ export default function App() {
       delete next[activeDmContact.id];
       return next;
     });
-    if (activeDmContact.conversationId) setDmPings((old) => old.filter((ping) => ping.conversationId !== activeDmContact.conversationId));
   }, [activeDmContact?.id, activeDmContact?.conversationId]);
 
   useEffect(() => {
@@ -878,22 +870,22 @@ export default function App() {
     : ["Сообщения", "Найти беседу", "Новая беседа"].includes(activeHomeTab)
       ? "Новая беседа"
       : "";
-  const dmNotifications = dmPings.length > 0 && <div className="dm-notifications" aria-live="polite">{dmPings.map((ping) => <button key={ping.id} className="dm-notification" onClick={() => { const person = dmContacts.find((item) => item.id === ping.userId); if (person) { setActiveView("home"); setActiveDm(person.id); setUnreadDms((old) => { const next = { ...old }; delete next[person.id]; return next; }); setActiveHomeTab("Сообщения"); } setDmPings((old) => old.filter((item) => item.id !== ping.id)); }}><ProfileAvatar profile={{ id: ping.userId, username: ping.sender, display_name: ping.sender, avatar_url: ping.avatar_url, presence_status: "online" }} name={ping.sender} className="dm-avatar"/><span><strong>{ping.sender}</strong><small>{ping.content}</small></span><i onClick={(e) => { e.stopPropagation(); setDmPings((old) => old.filter((item) => item.id !== ping.id)); }}>×</i></button>)}</div>;
+  const totalUnreadDms = Object.values(unreadDms).reduce((sum, count) => sum + count, 0);
 
   return (
     <div className={`app-shell ${activeView === "home" ? "home-shell" : ""} ${!membersOpen ? "members-hidden" : ""}`}>
       <aside className={`server-rail ${sidebarOpen ? "rail-open" : ""}`}>
-        <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""}`} title={activeView === "home" ? "Открыть навигацию" : "Главная"} onClick={() => {
+        <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""} ${totalUnreadDms ? "has-notifications" : ""}`} title={totalUnreadDms ? `Главная — ${totalUnreadDms} непрочитанных личных сообщений` : "Главная"} onClick={() => {
           if (window.matchMedia("(max-width: 760px)").matches && activeView === "home") { setSidebarOpen((open) => !open); return; }
           setActiveView("home"); setActiveHomeTab("Сообщения"); setActiveDm("");
           setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
         }}>
-          <span className="brand-glyph">n</span>
+          <span className="brand-glyph">n</span>{totalUnreadDms > 0 && <b className="rail-unread">{totalUnreadDms > 99 ? "99+" : totalUnreadDms}</b>}
         </button>
         <div className="rail-separator" />
         {spaces.map((space) => {
           const unreadCount = (channelsBySpace[space.id] || []).reduce((sum, channel) => sum + (unreadChannels[channel.id] || 0), 0);
-          return <button key={space.id} className={`server-icon ${activeView === "server" && activeSpaceId === space.id ? "selected" : ""}`} title={unreadCount ? `${space.name} — ${unreadCount} непрочитанных` : space.name} onClick={() => {
+          return <button key={space.id} className={`server-icon ${activeView === "server" && activeSpaceId === space.id ? "selected" : ""} ${unreadCount ? "has-notifications" : ""}`} title={unreadCount ? `${space.name} — ${unreadCount} непрочитанных` : space.name} onClick={() => {
             const isCurrentSpace = activeView === "server" && activeSpaceId === space.id;
             const isMobile = window.matchMedia("(max-width: 760px)").matches;
             if (isCurrentSpace && isMobile) setSidebarOpen((open) => !open);
@@ -924,7 +916,7 @@ export default function App() {
         </nav>
         <div className="dm-heading"><span>ЛИЧНЫЕ СООБЩЕНИЯ</span><button title="Новая беседа" onClick={() => setSearchOpen(true)}><Plus size={18}/></button></div>
         <div className="dm-list">
-          {dmContacts.map((person) => { const name = person.display_name || person.username; return <button key={person.id} className={`dm-item ${activeDm === person.id ? "active" : ""}`} onClick={() => { setActiveDm(person.id); setUnreadDms((old) => { const next = { ...old }; delete next[person.id]; return next; }); setDmPings((old) => old.filter((ping) => ping.userId !== person.id)); setActiveHomeTab("Сообщения"); setSidebarOpen(false); }}><ProfileAvatar profile={person} name={name} className="dm-avatar" /><span className="dm-name">{name}</span>{unreadDms[person.id] ? <b className="dm-unread">{unreadDms[person.id] > 99 ? "99+" : unreadDms[person.id]}</b> : <i/>}</button>; })}
+          {dmContacts.map((person) => { const name = person.display_name || person.username; const unread = unreadDms[person.id] || 0; return <button key={person.id} className={`dm-item ${activeDm === person.id ? "active" : ""} ${unread ? "has-unread" : ""}`} onClick={() => { setActiveDm(person.id); setUnreadDms((old) => { const next = { ...old }; delete next[person.id]; return next; }); setActiveHomeTab("Сообщения"); setSidebarOpen(false); }}><ProfileAvatar profile={person} name={name} className="dm-avatar" /><span className="dm-name">{name}</span>{unread ? <b className="dm-unread">{unread > 99 ? "99+" : unread}</b> : <i/>}</button>; })}
           {!dmContacts.length && <p className="empty-small">Пока нет личных чатов.</p>}
         </div>
         <div className="profile-bar">
@@ -966,7 +958,6 @@ export default function App() {
         </div>
       </aside>}
 
-      {dmNotifications}
       {activeView === "home" ? <main className="chat-area home-area">
         <header className="chat-header home-header"><strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
         {activeDm ? <>

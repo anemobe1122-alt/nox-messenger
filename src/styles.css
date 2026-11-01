@@ -99,6 +99,11 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .server-icon.selected i { height: 28px; }
 .server-icon span { font-size: 13px; font-weight: 800; }
 .server-unread { position: absolute; right: -5px; bottom: -4px; min-width: 19px; height: 19px; padding: 0 4px; border: 2px solid var(--rail); border-radius: 10px; display: grid; place-items: center; color: #fff; background: #ed4245; font-size: 9px; line-height: 1; }
+.rail-unread { position: absolute; right: -7px; bottom: -6px; min-width: 19px; height: 19px; padding: 0 4px; border: 2px solid var(--rail); border-radius: 10px; display: grid; place-items: center; color: #fff; background: #ed4245; font-size: 9px; line-height: 1; }
+.server-icon.has-notifications { animation: unread-icon-pulse 1.35s ease-in-out infinite; }
+.server-icon.has-notifications .server-unread { box-shadow: 0 0 8px #ed424599; }
+.brand-mark.has-notifications { animation: unread-icon-pulse 1.35s ease-in-out infinite; }
+@keyframes unread-icon-pulse { 0%, 100% { filter: drop-shadow(0 0 1px #ed424544); } 50% { filter: drop-shadow(0 0 8px #ed4245cc); } }
 .rail-separator { width: 32px; height: 1px; background: #383944; margin: 1px 0 2px; }
 .add-server { color: var(--green); background: #252a2d; }
 .explore { color: #7edcb3; background: #252a2d; }
