@@ -69,6 +69,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [notice, setNotice] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pullRefreshDistance, setPullRefreshDistance] = useState(0);
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
@@ -120,6 +121,50 @@ export default function App() {
   }, []);
 
   useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
+
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 760px)").matches) return;
+    let startY: number | null = null;
+    let activeScroller: HTMLElement | null = null;
+    let distance = 0;
+    const scrollerSelector = ".sidebar-scroll, .dm-list, .messages-scroll, .dm-chat, .home-content";
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) { startY = null; return; }
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) { startY = null; return; }
+      activeScroller = target?.closest(scrollerSelector) as HTMLElement | null;
+      if (activeScroller && activeScroller.scrollTop > 0) { startY = null; return; }
+      startY = event.touches[0].clientY;
+      distance = 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (startY === null || event.touches.length !== 1) return;
+      if (activeScroller && activeScroller.scrollTop > 0) return;
+      const nextDistance = event.touches[0].clientY - startY;
+      if (nextDistance <= 12) return;
+      distance = nextDistance;
+      if (event.cancelable) event.preventDefault();
+      setPullRefreshDistance(Math.min(distance, 96));
+    };
+    const onTouchEnd = () => {
+      const shouldRefresh = distance >= 82;
+      startY = null;
+      activeScroller = null;
+      distance = 0;
+      setPullRefreshDistance(0);
+      if (shouldRefresh) window.location.reload();
+    };
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    document.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+      document.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
 
   const loadProfile = useCallback(async (authUser: any) => {
     if (!supabase || !authUser) return;
@@ -1011,6 +1056,9 @@ export default function App() {
 
   return (
     <div className={`app-shell ${activeView === "home" ? "home-shell" : ""} ${!membersOpen ? "members-hidden" : ""}`}>
+      {pullRefreshDistance > 0 && <div className="pull-refresh-indicator" style={{ top: `calc(env(safe-area-inset-top) + ${Math.min(pullRefreshDistance, 96)}px)` }}>
+        <span className="pull-refresh-spinner" />{pullRefreshDistance >= 82 ? "Отпусти, чтобы обновить" : "Потяни вниз для обновления"}
+      </div>}
       <aside className={`server-rail ${sidebarOpen ? "rail-open" : ""}`}>
         <button className={`brand-mark ${activeView === "home" ? "brand-active" : ""} ${totalUnreadDms ? "has-notifications" : ""}`} title={totalUnreadDms ? `Главная — ${totalUnreadDms} непрочитанных личных сообщений` : "Главная"} onClick={() => {
           const isMobile = window.matchMedia("(max-width: 760px)").matches;
