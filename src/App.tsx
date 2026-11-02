@@ -103,6 +103,8 @@ export default function App() {
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState("");
   const [voicePeers, setVoicePeers] = useState<{id:string; username:string; displayName:string}[]>([]);
   const [voiceMuted, setVoiceMuted] = useState(false);
+  const [voiceSpeakingIds, setVoiceSpeakingIds] = useState<string[]>([]);
+  const voiceMeterCleanupRef = useRef<Record<string, () => void>>({});
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceConnectionsRef = useRef<Record<string, RTCPeerConnection>>({});
   const voiceRoomRef = useRef<any>(null);
@@ -616,6 +618,45 @@ export default function App() {
     if (!activeVoiceChannelId || !user || !supabase || !voiceStreamRef.current) return;
     const room = supabase.channel(`voice:${activeVoiceChannelId}`, { config: { presence: { key: user.id }, broadcast: { self: false } } });
     voiceRoomRef.current = room;
+
+    const startVoiceMeter = (stream: MediaStream, speakerId: string) => {
+      voiceMeterCleanupRef.current[speakerId]?.();
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const context = new AudioContextClass();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      const source = context.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
+      let frame = 0;
+      let speaking = false;
+      let stopped = false;
+      const checkLevel = () => {
+        if (stopped) return;
+        analyser.getByteTimeDomainData(samples);
+        let sum = 0;
+        for (let i = 0; i < samples.length; i++) { const value = (samples[i] - 128) / 128; sum += value * value; }
+        const level = Math.sqrt(sum / samples.length);
+        const nextSpeaking = level > 0.035 && !voiceMuted;
+        if (nextSpeaking !== speaking) {
+          speaking = nextSpeaking;
+          setVoiceSpeakingIds(old => speaking ? (old.includes(speakerId) ? old : [...old, speakerId]) : old.filter(id => id !== speakerId));
+        }
+        frame = requestAnimationFrame(checkLevel);
+      };
+      void context.resume().catch(() => undefined);
+      frame = requestAnimationFrame(checkLevel);
+      voiceMeterCleanupRef.current[speakerId] = () => {
+        stopped = true;
+        cancelAnimationFrame(frame);
+        source.disconnect();
+        analyser.disconnect();
+        void context.close().catch(() => undefined);
+        setVoiceSpeakingIds(old => old.filter(id => id !== speakerId));
+        delete voiceMeterCleanupRef.current[speakerId];
+      };
+    };
     const sendSignal = (payload: any) => room.send({ type: "broadcast", event: "signal", payload: { ...payload, from: user.id } });
     const makePeer = (peerId: string) => {
       if (voiceConnectionsRef.current[peerId]) return voiceConnectionsRef.current[peerId];
@@ -627,6 +668,7 @@ export default function App() {
         let audio = voiceAudioRef.current[peerId];
         if (!audio) { audio = new Audio(); audio.autoplay = true; audio.volume = 1; voiceAudioRef.current[peerId] = audio; }
         audio.srcObject = event.streams[0];
+        startVoiceMeter(event.streams[0], peerId);
         void audio.play().catch(() => undefined);
       };
       pc.onconnectionstatechange = () => {
@@ -671,6 +713,8 @@ export default function App() {
     return () => {
       void room.untrack();
       void supabase!.removeChannel(room);
+      Object.values(voiceMeterCleanupRef.current).forEach(cleanup => cleanup());
+      voiceMeterCleanupRef.current = {};
       Object.values(voiceConnectionsRef.current).forEach(pc => pc.close());
       voiceConnectionsRef.current = {};
       Object.values(voiceAudioRef.current).forEach(audio => { audio.pause(); audio.srcObject = null; });
@@ -678,6 +722,7 @@ export default function App() {
       voiceStreamRef.current?.getTracks().forEach(track => track.stop());
       voiceStreamRef.current = null;
       voiceRoomRef.current = null;
+      setVoiceSpeakingIds([]);
       setVoicePeers([]);
     };
   }, [activeVoiceChannelId, user, profile]);
