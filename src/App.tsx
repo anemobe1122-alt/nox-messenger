@@ -4,7 +4,7 @@ import "./home.css";
 import {
   Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users, ArrowLeft,
   ChevronDown, Headphones, Mic, Bell, LogOut, X, LoaderCircle, ShieldCheck,
-  Sparkles, UserRound, Store, MessageSquare, CirclePlus, Trash2, UserPlus, UserCheck, ImagePlus
+  Sparkles, UserRound, Store, MessageSquare, CirclePlus, Trash2, UserPlus, UserCheck, ImagePlus, Images
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
@@ -15,6 +15,11 @@ type FriendRelation = Profile & { requestId: string; requesterId: string; addres
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
 type Channel = { id: string; server_id: string; name: string; type?: string; slowmode_seconds?: number };
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile; message_type?: "text" | "server_invite"; metadata?: Record<string, any> | null };
+type TenorGif = { id: string; title?: string; media_formats?: { gif?: { url?: string }; tinygif?: { url?: string }; mediumgif?: { url?: string } } };
+function MessageContent({ content }: { content: string }) {
+  if (content.startsWith("GIF:")) { const url = content.slice(4).trim(); if (/^https:\/\//i.test(url)) return <a className="message-gif-link" href={url} target="_blank" rel="noreferrer"><img className="message-gif" src={url} alt="GIF" loading="lazy" /></a>; }
+  return <p>{content}</p>;
+}
 
 function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
@@ -95,6 +100,11 @@ export default function App() {
   const [peopleResults, setPeopleResults] = useState<Profile[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [dmDraft, setDmDraft] = useState("");
+  const [gifPickerFor, setGifPickerFor] = useState<"dm" | "channel" | null>(null);
+  const [gifQuery, setGifQuery] = useState("");
+  const [gifResults, setGifResults] = useState<TenorGif[]>([]);
+  const [gifLoading, setGifLoading] = useState(false);
+  const [gifError, setGifError] = useState("");
   const [dmMessages, setDmMessages] = useState<Record<string, Message[]>>(() => {
     try { return JSON.parse(localStorage.getItem("nox-dm-messages") || "{}"); } catch { return {}; }
   });
@@ -121,6 +131,24 @@ export default function App() {
   }, []);
 
   useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
+
+  useEffect(() => {
+    if (!gifPickerFor) return;
+    const apiKey = import.meta.env.VITE_TENOR_API_KEY;
+    if (!apiKey) { setGifResults([]); setGifError("Для поиска GIF добавь VITE_TENOR_API_KEY в GitHub Actions Variables."); return; }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setGifLoading(true); setGifError("");
+      try {
+        const endpoint = gifQuery.trim() ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(gifQuery.trim())}&key=${apiKey}&client_key=nox_messenger&limit=24&media_filter=gif,tinygif` : `https://tenor.googleapis.com/v2/featured?key=${apiKey}&client_key=nox_messenger&limit=24&media_filter=gif,tinygif`;
+        const response = await fetch(endpoint, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Tenor вернул ошибку ${response.status}`);
+        const payload = await response.json(); setGifResults(Array.isArray(payload.results) ? payload.results : []);
+      } catch (error) { if (!controller.signal.aborted) setGifError(error instanceof Error ? error.message : "Не удалось загрузить GIF."); }
+      finally { if (!controller.signal.aborted) setGifLoading(false); }
+    }, gifQuery.trim() ? 350 : 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [gifPickerFor, gifQuery]);
 
   useEffect(() => {
     if (!window.matchMedia("(max-width: 760px)").matches) return;
@@ -845,6 +873,31 @@ export default function App() {
     if (!avatarBusy) avatarInputRef.current?.click();
   }
 
+  async function sendGif(url: string, direct: boolean) {
+    if (!/^https:\/\//i.test(url)) return;
+    const content = `GIF:${url}`;
+    if (direct) {
+      if (!activeDm || !activeDmContact) return;
+      if (supabase && user && activeDmContact.conversationId) {
+        const { error } = await supabase.from("direct_messages").insert({ conversation_id: activeDmContact.conversationId, user_id: user.id, content });
+        if (error) { showNotice("GIF не отправилась. Проверь доступ к личному чату."); return; }
+      } else {
+        const item: Message = { id: crypto.randomUUID(), channel_id: `dm-${activeDm}`, user_id: "you", content, created_at: new Date().toISOString(), profile: { id: "you", username: "you", display_name: currentName } };
+        setDmMessages((old) => { const next = { ...old, [activeDmKey]: [...(old[activeDmKey] || []), item] }; localStorage.setItem(`nox-dm-${activeDmKey}`, JSON.stringify(next[activeDmKey])); return next; });
+      }
+    } else {
+      if (!activeChannel) return;
+      if (supabase && !activeChannel.id.startsWith("demo-") && !activeChannel.id.startsWith("local-") && user) {
+        const { error } = await supabase.from("messages").insert({ channel_id: activeChannel.id, user_id: user.id, content });
+        if (error) { showNotice("GIF не отправилась. Проверь доступ к каналу."); return; }
+      } else {
+        const item: Message = { id: crypto.randomUUID(), channel_id: activeChannel.id, user_id: "you", content, created_at: new Date().toISOString(), profile: { id: "you", username: "you", display_name: currentName } };
+        setMessages((old) => { const next = [...old, item]; localStorage.setItem(`nox-messages-${activeChannel.id}`, JSON.stringify(next)); return next; });
+      }
+    }
+    setGifPickerFor(null); setGifQuery(""); setGifResults([]);
+  }
+
   async function sendDm(e: FormEvent) {
     e.preventDefault();
     const content = dmDraft.trim();
@@ -1172,12 +1225,15 @@ export default function App() {
                         {acceptingInviteId === m.metadata.invite_id ? "Подключаем…" : "Перейти на сервер"}
                       </button>
                     </div>
-                  </div> : <p>{m.content}</p>}
+                  </div> : <MessageContent content={m.content} />}
                 </div>
               </article>;
             })}
           </div>
-          <div className="composer-wrap"><form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form></div>
+          <div className="composer-wrap">
+            {gifPickerFor === "dm" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…" autoFocus/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.media_formats?.gif?.url || gif.media_formats?.mediumgif?.url || gif.media_formats?.tinygif?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, true)}><img src={gif.media_formats?.tinygif?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">GIFs от Tenor</small></div>}
+            <form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "dm" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "dm" ? null : "dm"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form>
+          </div>
         </> : <div className="home-content">
           <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Сообщения" || activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Начни личную беседу или продолжи общение." : activeHomeTab === "Nitro" ? "Дополнительные возможности появятся позже." : activeHomeTab === "Магазин" ? "Магазин оформления появится позже." : "Общайся, открывай сообщества и оставайся на связи."}</p>{homeActionLabel && <button onClick={() => setSearchOpen(true)}><UserRound size={17}/> {homeActionLabel}</button>}</div>
           {activeHomeTab === "Друзья" ? <div className="friend-sections">
@@ -1250,7 +1306,7 @@ export default function App() {
                   <div className="message-meta"><strong>{name}</strong><time>{timeLabel(message.created_at)}</time>
                     {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(message, false)}><Trash2 size={15}/></button>}
                   </div>
-                  <p>{message.content}</p>
+                  <MessageContent content={message.content} />
                 </div>
               </article>
             );
@@ -1258,10 +1314,12 @@ export default function App() {
         </div>
 
         <div className="composer-wrap">
+          {gifPickerFor === "channel" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…"/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.media_formats?.gif?.url || gif.media_formats?.mediumgif?.url || gif.media_formats?.tinygif?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, false)}><img src={gif.media_formats?.tinygif?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">GIFs от Tenor</small></div>}
           <form className="composer" onSubmit={sendMessage}>
             <label className="composer-plus" title="Прикрепить файл"><Plus size={22}/><input type="file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setDraft((d) => `${d}${d ? " " : ""}[Файл: ${file.name}]`); e.currentTarget.value = ""; }}/></label>
             <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={slowmodeRemaining > 0} placeholder={slowmodeRemaining > 0 ? `Можно написать через ${slowmodeRemaining} сек.` : `Написать в #${activeChannel?.name || "канал"}`} aria-label="Сообщение" />
             <button type="button" className="composer-tool" title="Эмодзи" onClick={() => setDraft((d) => d + " ✨")}>☺</button>
+            <button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "channel" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "channel" ? null : "channel"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button>
             <button className="send-button" type="submit" disabled={!draft.trim() || slowmodeRemaining > 0} title={slowmodeRemaining > 0 ? `Подожди ${slowmodeRemaining} сек.` : "Отправить"}><Send size={18}/></button>
           </form>
           <p className="composer-hint">{slowmodeRemaining > 0 ? `Медленный режим: подожди ${slowmodeRemaining} сек.` : "Общайся уважительно. Nox пока находится в разработке."}</p>
