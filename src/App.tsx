@@ -1503,7 +1503,6 @@ export default function App() {
           <div className="profile-popover-main">
             <button type="button" className="profile-popover-avatar" title="Сменить аватар" onClick={openAvatarPicker}>
               <ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} avatarBackground={profile?.nitro_avatar_bg || undefined} className={`avatar ${profile?.nitro_frame && profile.nitro_frame !== "none" && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${profile.nitro_frame}` : ""}`} />
-              <ImagePlus size={15}/>
             </button>
             <strong>{currentName}</strong>
             <span className="profile-popover-username">@{profile?.username || "profile"}</span>
