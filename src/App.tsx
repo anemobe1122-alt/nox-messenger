@@ -9,7 +9,7 @@ import {
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
-type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus; bio?: string | null; nitro_expires_at?: string | null; nitro_banner_url?: string | null; nitro_frame?: string | null; nitro_accent_color?: string | null };
+type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus; bio?: string | null; nitro_expires_at?: string | null; nitro_banner_url?: string | null; nitro_frame?: string | null; nitro_accent_color?: string | null; nitro_avatar_bg?: string | null };
 type DmContact = Profile & { conversationId?: string };
 type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
@@ -24,11 +24,12 @@ function MessageContent({ content }: { content: string }) {
 function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
 }
-function ProfileAvatar({ profile, name, className }: { profile?: Profile | null; name: string; className: string }) {
+function ProfileAvatar({ profile, name, className, avatarBackground }: { profile?: Profile | null; name: string; className: string; avatarBackground?: string }) {
   const avatar = profile?.avatar_url
     ? <img className={`${className} profile-avatar-image`} src={profile.avatar_url} alt={`${name} — аватар`} />
     : <span className={className}>{initials(name)}</span>;
-  return profile?.presence_status ? <span className="avatar-presence-wrap">{avatar}<i className={`presence-dot status-${profile.presence_status}`} title={profile.presence_status === "invisible" ? "Не в сети" : presenceLabel(profile.presence_status)} /></span> : avatar;
+  const avatarWithBackground = <span className="avatar-background-wrap" style={avatarBackground ? { backgroundColor: avatarBackground } : undefined}>{avatar}</span>;
+  return profile?.presence_status ? <span className="avatar-presence-wrap">{avatarWithBackground}<i className={`presence-dot status-${profile.presence_status}`} title={profile.presence_status === "invisible" ? "Не в сети" : presenceLabel(profile.presence_status)} /></span> : avatarWithBackground;
 }
 function presenceLabel(status: PresenceStatus) {
   return ({ online: "В сети", idle: "Неактивен", dnd: "Не беспокоить", invisible: "Невидимый" } as const)[status];
@@ -68,6 +69,7 @@ export default function App() {
   const [nitroBannerDraft, setNitroBannerDraft] = useState("");
   const [nitroFrameDraft, setNitroFrameDraft] = useState("none");
   const [nitroAccentDraft, setNitroAccentDraft] = useState("#8b75ff");
+  const [nitroAvatarBgDraft, setNitroAvatarBgDraft] = useState("#29243b");
   const [profileSaving, setProfileSaving] = useState(false);
   const [friendRelations, setFriendRelations] = useState<FriendRelation[]>([]);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -295,7 +297,7 @@ export default function App() {
     const personIds = [...new Set(rows.map((row: any) => row.requester_id === uid ? row.addressee_id : row.requester_id))];
     if (!personIds.length) { setFriendRelations([]); return; }
     const { data: people, error: peopleError } = await supabase.from("profiles")
-      .select("id, username, display_name, avatar_url, presence_status, bio, nitro_expires_at, nitro_banner_url, nitro_frame, nitro_accent_color").in("id", personIds);
+      .select("id, username, display_name, avatar_url, presence_status, bio, nitro_expires_at, nitro_banner_url, nitro_frame, nitro_accent_color, nitro_avatar_bg").in("id", personIds);
     if (peopleError) { showNotice("Не удалось загрузить профили друзей."); return; }
     const profilesById = new Map((people || []).map((person: any) => [person.id, person as Profile]));
     setFriendRelations(rows.flatMap((row: any) => {
@@ -360,6 +362,7 @@ export default function App() {
     setNitroBannerDraft(profile?.nitro_banner_url || "");
     setNitroFrameDraft(profile?.nitro_frame || "none");
     setNitroAccentDraft(profile?.nitro_accent_color || "#8b75ff");
+    setNitroAvatarBgDraft(profile?.nitro_avatar_bg || "#29243b");
     setProfilePopoverOpen(false);
     setProfileSettingsOpen(true);
     setPresenceMenuOpen(false);
@@ -375,7 +378,7 @@ export default function App() {
     if (!displayName) { showNotice("Укажи отображаемое имя."); return; }
     setProfileSaving(true);
     const { data, error } = await supabase.from("profiles")
-      .update({ username, display_name: displayName, bio, ...(profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? { nitro_banner_url: nitroBannerDraft.trim() || null, nitro_frame: nitroFrameDraft, nitro_accent_color: nitroAccentDraft } : {}) })
+      .update({ username, display_name: displayName, bio, ...(profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? { nitro_banner_url: nitroBannerDraft.trim() || null, nitro_frame: nitroFrameDraft, nitro_accent_color: nitroAccentDraft, nitro_avatar_bg: nitroAvatarBgDraft } : {}) })
       .eq("id", user.id).select("*").single();
     setProfileSaving(false);
     if (error) {
@@ -1496,7 +1499,7 @@ export default function App() {
           <div className="profile-popover-banner" style={profile?.nitro_banner_url && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? { backgroundImage: `url("${profile.nitro_banner_url}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
           <div className="profile-popover-main">
             <button type="button" className="profile-popover-avatar" title="Сменить аватар" onClick={openAvatarPicker}>
-              <ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className={`avatar ${profile?.nitro_frame && profile.nitro_frame !== "none" && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${profile.nitro_frame}` : ""}`} />
+              <ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} avatarBackground={profile?.nitro_avatar_bg || undefined} className={`avatar ${profile?.nitro_frame && profile.nitro_frame !== "none" && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${profile.nitro_frame}` : ""}`} />
               <ImagePlus size={15}/>
             </button>
             <strong>{currentName}</strong>
@@ -1516,7 +1519,7 @@ export default function App() {
           <button type="button" className="profile-popover-close" aria-label="Закрыть" onClick={closeMemberCard}><X size={17}/></button>
           <div className="profile-popover-banner" style={memberCardProfile.nitro_banner_url && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? { backgroundImage: `url("${memberCardProfile.nitro_banner_url}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
           <div className="profile-popover-main">
-            <ProfileAvatar profile={memberCardProfile} name={memberCardProfile.display_name || memberCardProfile.username} className={`avatar profile-card-avatar ${memberCardProfile.nitro_frame && memberCardProfile.nitro_frame !== "none" && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${memberCardProfile.nitro_frame}` : ""}`} />
+            <ProfileAvatar profile={memberCardProfile} name={memberCardProfile.display_name || memberCardProfile.username} avatarBackground={memberCardProfile.nitro_avatar_bg || undefined} className={`avatar profile-card-avatar ${memberCardProfile.nitro_frame && memberCardProfile.nitro_frame !== "none" && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${memberCardProfile.nitro_frame}` : ""}`} />
             <strong>{memberCardProfile.display_name || memberCardProfile.username}</strong>
             <span className="profile-popover-username">@{memberCardProfile.username}</span>
             <div className="profile-popover-status"><i className={`presence-dot status-${memberCardProfile.presence_status || "invisible"}`}/>{memberCardProfile.presence_status ? presenceLabel(memberCardProfile.presence_status) : "Статус не указан"}</div>
@@ -1541,10 +1544,11 @@ export default function App() {
 
       {profileSettingsOpen && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setProfileSettingsOpen(false); }}>
         <form className="modal profile-edit-modal" onSubmit={saveProfileSettings}>
+          <div className="profile-editor-controls">
           <button type="button" className="modal-close" onClick={() => setProfileSettingsOpen(false)}><X size={19}/></button>
           <h2>Редактировать профиль</h2>
           <div className="profile-edit-avatar-row">
-            <ProfileAvatar profile={profile} name={currentName} className="avatar profile-edit-avatar" />
+            <ProfileAvatar profile={profile} name={currentName} className="avatar profile-edit-avatar" avatarBackground={nitroAvatarBgDraft} />
             <div><strong>{currentName}</strong><small>Аватар виден другим участникам.</small></div>
             <button type="button" className="secondary-button" disabled={avatarBusy} onClick={openAvatarPicker}><ImagePlus size={15}/>{avatarBusy ? "Загрузка…" : "Сменить"}</button>
           </div>
@@ -1568,9 +1572,27 @@ export default function App() {
               ].map((frame) => <button type="button" key={frame.id} className={`nitro-frame-choice nitro-preview-${frame.id} ${nitroFrameDraft===frame.id?"selected":""}`} onClick={() => setNitroFrameDraft(frame.id)}><span className="nitro-frame-demo">{frame.icon}</span><span>{frame.name}</span>{nitroFrameDraft===frame.id && <i>✓</i>}</button>)}
             </div></div>
             <label>Цвет профиля<input type="color" value={nitroAccentDraft} onChange={(e) => setNitroAccentDraft(e.target.value)} /></label>
+            <label>Фон за аватаркой<input type="color" value={nitroAvatarBgDraft} onChange={(e) => setNitroAvatarBgDraft(e.target.value)} /></label>
             <small>GIF-аватарку можно загрузить через кнопку смены аватара.</small>
           </section>}
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setProfileSettingsOpen(false)}>Отмена</button><button className="primary-button" disabled={profileSaving}>{profileSaving ? "Сохраняю…" : "Сохранить"}</button></div>
+          </div>
+          <aside className="profile-editor-preview">
+            <div className="profile-preview-label">ПРЕДПРОСМОТР ПРОФИЛЯ</div>
+            <div className="profile-preview-card">
+              <div className="profile-preview-banner" style={{ backgroundColor: nitroAccentDraft, backgroundImage: nitroBannerDraft.trim() ? `url("${nitroBannerDraft.trim()}")` : undefined }} />
+              <div className="profile-preview-content">
+                <div className="profile-preview-avatar" style={{ backgroundColor: nitroAvatarBgDraft }}>
+                  <ProfileAvatar profile={profile} name={profileNameDraft || currentName} avatarBackground={nitroAvatarBgDraft} className={`avatar ${nitroFrameDraft !== "none" ? `nitro-frame-${nitroFrameDraft}` : ""}`} />
+                </div>
+                <strong>{profileNameDraft || currentName}</strong>
+                <span>@{profileUsernameDraft || profile?.username}</span>
+                <p>{profileBioDraft || "Твоя биография появится здесь"}</p>
+                {profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() && <span className="nox-nitro-badge">💎 NOX NITRO</span>}
+              </div>
+            </div>
+            <p className="profile-preview-tip">Так твой профиль будут видеть другие участники Nox.</p>
+          </aside>
         </form>
       </div>}
 
