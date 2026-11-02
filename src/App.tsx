@@ -100,7 +100,6 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [unreadChannels, setUnreadChannels] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState("");
-  const [connectionEpoch, setConnectionEpoch] = useState(0);
   const [showAuth, setShowAuth] = useState(true);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
   const [authEmail, setAuthEmail] = useState("");
@@ -219,26 +218,6 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
   
-  // Browsers may suspend background tabs. Reconnect Realtime and refresh the
-  // currently open conversation when the tab becomes active again.
-  useEffect(() => {
-    if (!supabase) return;
-    let lastRefresh = 0;
-    const reconnectAndRefresh = () => {
-      if (document.visibilityState === "hidden") return;
-      const now = Date.now();
-      if (now - lastRefresh < 1200) return;
-      lastRefresh = now;
-      try { supabase.realtime.connect(); } catch (error) { console.warn("Supabase Realtime reconnect:", error); }
-      setConnectionEpoch((value) => value + 1);
-    };
-    window.addEventListener("online", reconnectAndRefresh);
-    document.addEventListener("visibilitychange", reconnectAndRefresh);
-    return () => {
-      window.removeEventListener("online", reconnectAndRefresh);
-      document.removeEventListener("visibilitychange", reconnectAndRefresh);
-    };
-  }, []);
   useEffect(() => {
     localStorage.setItem("nox-active-view", activeView);
     localStorage.setItem("nox-active-space", activeSpaceId);
@@ -652,7 +631,7 @@ export default function App() {
     else setFriendRelations([]);
   }, [user, loadFriendRelations]);
 
-  useEffect(() => { loadMessages(activeChannelId); }, [activeChannelId, loadMessages, connectionEpoch]);
+  useEffect(() => { loadMessages(activeChannelId); }, [activeChannelId, loadMessages]);
 
   useEffect(() => {
     if (!activeChannel || activeChannel.type !== "voice" || !user || !supabase || activeVoiceChannelId === activeChannel.id) return;
@@ -881,7 +860,7 @@ export default function App() {
         setDmMessages((messages) => ({ ...messages, [conversationId]: (messages[conversationId] || []).filter((message) => message.id !== old.id) }));
       }).subscribe();
     return () => { cancelled = true; supabase!.removeChannel(channel); };
-  }, [activeDm, activeDmContact?.conversationId, activeDmKey, user, showNotice, connectionEpoch]);
+  }, [activeDm, activeDmContact?.conversationId, activeDmKey, user, showNotice]);
 
   useEffect(() => {
     if (!supabase || !user || !dmContacts.length) return;
