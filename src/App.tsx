@@ -1211,7 +1211,7 @@ export default function App() {
     if (error || !data) { showNotice(error?.message || "Не удалось создать канал."); return; }
     setChannelsBySpace((old) => ({ ...old, [activeSpace.id]: [...(old[activeSpace.id] || []), data as Channel] }));
     setActiveChannelId(data.id); setNewChannelName(""); setCreateChannelOpen(false);
-    showNotice(`Канал #${name} создан.`);
+    showNotice(channelType === "voice" ? `Голосовой канал «${name}» создан.` : `Канал #${name} создан.`);
   }
 
   async function saveChannelSettings(e: FormEvent) {
@@ -1364,11 +1364,9 @@ export default function App() {
               {channelMenuFor === channel.id && <div className="channel-context-menu"><button onClick={() => { chooseChannel(channel); setSlowmodeDraft(String(channel.slowmode_seconds || 0)); setChannelSettingsOpen(true); setChannelMenuFor(""); setSidebarOpen(false); }}><Settings size={15}/> Настройки канала</button><button className="danger" onClick={() => { chooseChannel(channel); setDeleteChannelOpen(true); setChannelMenuFor(""); setSidebarOpen(false); }}><Trash2 size={15}/> Удалить канал</button></div>}
             </div>
           )) : <p className="empty-small">Пока нет каналов.</p>}
-
-        </div>
           <div className="section-heading voice-section-heading"><span>ГОЛОСОВЫЕ КАНАЛЫ</span><button title="Создать голосовой канал" onClick={() => { setNewChannelType("voice"); setCreateChannelOpen(true); }}><Plus size={16}/></button></div>
           {channels.filter(channel => channel.type === "voice").map(channel => <button key={channel.id} className={`channel-item voice-channel-item ${activeChannelId === channel.id ? "active" : ""}`} onClick={() => { chooseChannel(channel); setActiveVoiceChannelId(""); }}><Headphones size={18}/><span>{channel.name}</span>{activeVoiceChannelId === channel.id && <i className="voice-live-dot"/>}</button>}
-
+        </div>
         <div className="profile-bar">
           <button type="button" className="profile-avatar-button" title="Открыть профиль" onClick={openProfilePopover}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
           <div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
