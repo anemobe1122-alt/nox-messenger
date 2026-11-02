@@ -916,3 +916,24 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .profile-edit-modal .nitro-customize label,.profile-edit-modal .profile-editor-controls > label { display:flex; flex-direction:column; gap:7px; margin:12px 0; }
 .profile-edit-modal .nitro-customize input[type=color] { height:42px; cursor:pointer; }
 @media(max-width:720px) { .profile-edit-modal { width:min(520px,calc(100vw - 16px)); max-height:calc(100dvh - 16px); grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); padding:16px; gap:0; overflow-y:auto; } .profile-editor-controls { max-height:none; overflow:visible; padding:0 2px 12px; } .profile-editor-preview { padding:14px 2px 6px; } .profile-preview-banner { height:105px; } }
+
+
+/* Fix avatar clipping in profile popovers after adding the background wrapper */
+.profile-popover { isolation:isolate; }
+.profile-popover-main { position:relative; padding-top:46px; }
+.profile-popover-avatar { position:absolute; top:-30px; left:15px; margin-top:0; z-index:2; display:grid; place-items:center; }
+.profile-popover-avatar .avatar-presence-wrap,
+.profile-popover-avatar .avatar-background-wrap { display:grid; width:58px; height:58px; place-items:center; border-radius:50%; }
+.profile-popover-avatar .avatar-background-wrap > .avatar,
+.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image { display:grid; width:100%; height:100%; place-items:center; border-radius:50%; object-fit:cover; }
+.profile-popover-avatar .avatar-background-wrap { overflow:visible; }
+.member-profile-card .profile-popover-main { padding-top:48px; }
+.member-profile-card .profile-card-avatar { position:absolute; top:-48px; left:15px; width:76px; height:76px; margin:0; border:5px solid #23242c; border-radius:50%; object-fit:cover; z-index:2; }
+.member-profile-card .avatar-background-wrap { position:absolute; top:-48px; left:15px; display:grid; width:76px; height:76px; place-items:center; overflow:visible; border:5px solid #23242c; border-radius:50%; }
+.member-profile-card .avatar-background-wrap > .profile-card-avatar { position:static; display:grid; width:100%; height:100%; margin:0; border:0; border-radius:50%; object-fit:cover; }
+.avatar-background-wrap { display:inline-grid; flex:0 0 auto; place-items:center; overflow:visible; border-radius:inherit; }
+.avatar-background-wrap > .avatar,
+.avatar-background-wrap > .profile-avatar-image { display:grid; width:100%; height:100%; place-items:center; border-radius:inherit; object-fit:cover; }
+.profile-edit-avatar-row .avatar-background-wrap { width:58px; height:58px; }
+.profile-popover-banner { flex:0 0 76px; }
+.profile-popover-main { min-width:0; }
