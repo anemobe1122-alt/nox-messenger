@@ -782,3 +782,23 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .search-result-actions { width: 100%; margin-left: 42px; justify-content: flex-start; }
   .message-delete-button { width: 40px; height: 40px; }
 }
+
+
+/* Discord-style GIF picker */
+.gif-picker { width: min(440px, 100%); margin: 0 0 10px auto; padding: 12px; border: 1px solid #3b3c49; border-radius: 12px; background: #20212a; box-shadow: 0 12px 35px #0007; }
+.gif-picker-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; color:#f0eff7; font-size:13px; }
+.gif-picker-top button { display:grid; place-items:center; border:0; border-radius:6px; padding:5px; color:#a6a7b7; background:transparent; }
+.gif-picker-top button:hover { color:#fff; background:#343541; }
+.gif-search { width:100%; height:36px; margin-bottom:10px; padding:0 10px; border:1px solid #41424e; border-radius:8px; outline:0; color:#f0eff7; background:#15161c; font:inherit; font-size:12px; }
+.gif-search:focus { border-color:#8274df; }
+.gif-results { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; max-height:260px; overflow:auto; }
+.gif-result { min-width:0; height:92px; overflow:hidden; padding:0; border:0; border-radius:7px; background:#111216; }
+.gif-result img { width:100%; height:100%; object-fit:cover; }
+.gif-result:hover { outline:2px solid #9687ff; }
+.gif-state { grid-column:1/-1; padding:22px 8px; color:#a4a5b1; text-align:center; font-size:11px; }
+.gif-attribution { display:block; margin-top:8px; color:#777988; text-align:right; font-size:9px; }
+.gif-trigger { display:flex; align-items:center; gap:4px; font-size:11px !important; font-weight:800; }
+.gif-trigger.active { color:#c9c0ff; }
+.message-gif-link { display:inline-block; max-width:min(360px,100%); margin-top:5px; }
+.message-gif { display:block; max-width:100%; max-height:280px; border-radius:9px; object-fit:contain; }
+@media (max-width:760px) { .gif-picker { width:100%; } .gif-results { grid-template-columns:repeat(2,minmax(0,1fr)); } .gif-result { height:105px; } }
