@@ -99,6 +99,15 @@ export default function App() {
   const [newSpaceName, setNewSpaceName] = useState("");
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelType, setNewChannelType] = useState<"text" | "voice">("text");
+  const [activeVoiceChannelId, setActiveVoiceChannelId] = useState("");
+  const [voicePeers, setVoicePeers] = useState<{id:string; username:string; displayName:string}[]>([]);
+  const [voiceMuted, setVoiceMuted] = useState(false);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceConnectionsRef = useRef<Record<string, RTCPeerConnection>>({});
+  const voiceRoomRef = useRef<any>(null);
+  const voiceAudioRef = useRef<Record<string, HTMLAudioElement>>({});
+
   const [channelMenuOpen, setChannelMenuOpen] = useState(false);
   const [channelMenuFor, setChannelMenuFor] = useState("");
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
@@ -1187,17 +1196,18 @@ export default function App() {
   async function createChannel(e: FormEvent) {
     e.preventDefault();
     const name = newChannelName.trim().toLowerCase().replace(/\s+/g, "-");
+    const channelType = newChannelType;
     if (!name) return;
     if (!activeSpace) { setCreateChannelOpen(false); setCreateSpaceOpen(true); showNotice("Сначала создай сервер."); return; }
     if (!supabase || !user || activeSpace.id.startsWith("demo-") || activeSpace.id.startsWith("local-")) {
-      const channel: Channel = { id: `local-${crypto.randomUUID()}`, server_id: activeSpace.id, name, type: "text" };
+      const channel: Channel = { id: `local-${crypto.randomUUID()}`, server_id: activeSpace.id, name, type: channelType };
       setChannelsBySpace((old) => ({ ...old, [activeSpace.id]: [...(old[activeSpace.id] || []), channel] }));
       setActiveChannelId(channel.id); setNewChannelName(""); setCreateChannelOpen(false);
-      showNotice(`Канал #${name} создан.`);
+      showNotice(channelType === "voice" ? `Голосовой канал «${name}» создан.` : `Канал #${name} создан.`);
       return;
     }
     const { data, error } = await supabase.from("channels")
-      .insert({ server_id: activeSpace.id, name, type: "text" }).select("*").single();
+      .insert({ server_id: activeSpace.id, name, type: channelType }).select("*").single();
     if (error || !data) { showNotice(error?.message || "Не удалось создать канал."); return; }
     setChannelsBySpace((old) => ({ ...old, [activeSpace.id]: [...(old[activeSpace.id] || []), data as Channel] }));
     setActiveChannelId(data.id); setNewChannelName(""); setCreateChannelOpen(false);
@@ -1346,8 +1356,8 @@ export default function App() {
           </div>}
         </div>
         <div className="sidebar-scroll">
-          <div className="section-heading"><span>ТЕКСТОВЫЕ КАНАЛЫ</span><button title="Создать канал" onClick={() => setCreateChannelOpen(true)}><Plus size={16}/></button></div>
-          {channels.length ? channels.map((channel) => (
+          <div className="section-heading"><span>ТЕКСТОВЫЕ КАНАЛЫ</span><button title="Создать текстовый канал" onClick={() => { setNewChannelType("text"); setCreateChannelOpen(true); }}><Plus size={16}/></button></div>
+          {channels.filter(channel => channel.type !== "voice").length ? channels.filter(channel => channel.type !== "voice").map((channel) => (
             <div key={channel.id} className={`channel-row ${channelMenuFor === channel.id ? "menu-open" : ""}`}>
               <button className={`channel-item ${activeChannelId === channel.id ? "active" : ""} ${unreadChannels[channel.id] ? "has-unread" : ""}`} onClick={() => chooseChannel(channel)}><Hash size={18}/><span>{channel.name}</span>{unreadChannels[channel.id] ? <b className="channel-unread">{unreadChannels[channel.id] > 99 ? "99+" : unreadChannels[channel.id]}</b> : null}</button>
               {canManageChannels && <button className="channel-settings-button" title={`Настройки #${channel.name}`} onClick={() => setChannelMenuFor((old) => old === channel.id ? "" : channel.id)}><Settings size={15}/></button>}
@@ -1356,6 +1366,9 @@ export default function App() {
           )) : <p className="empty-small">Пока нет каналов.</p>}
 
         </div>
+          <div className="section-heading voice-section-heading"><span>ГОЛОСОВЫЕ КАНАЛЫ</span><button title="Создать голосовой канал" onClick={() => { setNewChannelType("voice"); setCreateChannelOpen(true); }}><Plus size={16}/></button></div>
+          {channels.filter(channel => channel.type === "voice").map(channel => <button key={channel.id} className={`channel-item voice-channel-item ${activeChannelId === channel.id ? "active" : ""}`} onClick={() => { chooseChannel(channel); setActiveVoiceChannelId(""); }}><Headphones size={18}/><span>{channel.name}</span>{activeVoiceChannelId === channel.id && <i className="voice-live-dot"/>}</button>}
+
         <div className="profile-bar">
           <button type="button" className="profile-avatar-button" title="Открыть профиль" onClick={openProfilePopover}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
           <div className="profile-copy"><strong>{currentName}</strong><div className="presence-menu-wrap"><button className={`presence-trigger status-${presence}`} onClick={() => setPresenceMenuOpen((open) => !open)}><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</button>{presenceMenuOpen && <div className="presence-menu">{presenceOptions.map((option) => <button key={option.value} className={presence === option.value ? "selected" : ""} onClick={() => void choosePresence(option.value)}><i className={`presence-dot status-${option.value}`}/><span><strong>{option.label}</strong><small>{option.hint}</small></span></button>)}</div>}</div></div>
@@ -1404,7 +1417,7 @@ export default function App() {
               </article>;
             })}
           </div>
-          <div className="composer-wrap">
+          <div className={`composer-wrap ${activeChannel?.type === "voice" ? "voice-hidden" : ""}`}>
             {gifPickerFor === "dm" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…" autoFocus/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.images?.original?.url || gif.images?.fixed_width?.url || gif.images?.fixed_width_small?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, true)}><img src={gif.images?.fixed_width_small?.url || gif.images?.fixed_width?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">Powered by GIPHY</small></div>}
             {replyTarget?.direct && <div className="reply-composer-banner"><span>Ответ для <b>{replyTarget.author}</b>: {replyTarget.content.startsWith("GIF:") ? "[GIF]" : replyTarget.content}</span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
             <form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "dm" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "dm" ? null : "dm"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form>
@@ -1465,7 +1478,21 @@ export default function App() {
           </div>
         )}
 
-        <div className="messages-scroll" ref={channelScrollRef}>
+        {activeChannel?.type === "voice" && <section className="voice-room-panel">
+          <div className="voice-room-icon"><Headphones size={28}/></div><h2>{activeChannel.name}</h2>
+          <p>{activeVoiceChannelId === activeChannel.id ? "Ты подключён к голосовому каналу" : "Голосовой канал Nox"}</p>
+          <div className="voice-participants">
+            {activeVoiceChannelId === activeChannel.id && <div className="voice-participant"><ProfileAvatar profile={profile} name={currentName} className="avatar"/><span>{currentName} (ты)</span><i className={voiceMuted ? "muted" : ""}/></div>}
+            {voicePeers.map(peer => <div className="voice-participant" key={peer.id}><span className="voice-peer-avatar">{initials(peer.displayName || peer.username)}</span><span>{peer.displayName || peer.username}</span><i/></div>)}
+            {!activeVoiceChannelId && <span className="voice-empty">Пока никого нет. Подключись первым!</span>}
+          </div>
+          <div className="voice-controls">{activeVoiceChannelId === activeChannel.id ? <>
+            <button className={voiceMuted ? "voice-control-on" : ""} onClick={() => { const next=!voiceMuted; setVoiceMuted(next); voiceStreamRef.current?.getAudioTracks().forEach(track=>track.enabled=!next); }}><Mic size={18}/>{voiceMuted ? "Включить микрофон" : "Выключить микрофон"}</button>
+            <button className="voice-disconnect" onClick={() => { setActiveVoiceChannelId(""); setVoicePeers([]); }}><LogOut size={18}/> Отключиться</button>
+          </> : <button className="voice-connect" onClick={async () => { if (!user || !supabase) { showNotice("Войди в аккаунт, чтобы подключиться к голосовому каналу."); return; } try { const stream=await navigator.mediaDevices.getUserMedia({audio:true}); voiceStreamRef.current=stream; setVoiceMuted(false); setActiveVoiceChannelId(activeChannel.id); } catch { showNotice("Не удалось получить доступ к микрофону. Проверь разрешения браузера."); } }}><Headphones size={18}/> Подключиться</button>}</div>
+          <small className="voice-beta-note">Голосовой чат · Разреши доступ к микрофону</small>
+        </section>}
+        <div className={`messages-scroll ${activeChannel?.type === "voice" ? "voice-hidden" : ""}`} ref={channelScrollRef}>
           <div className="welcome-block">
             <div className="welcome-orb"><MessageCircle size={27}/></div>
             <h1>Добро пожаловать в #{activeChannel?.name || "Nox"}</h1>
@@ -1769,6 +1796,7 @@ export default function App() {
             <button type="button" className="modal-close" onClick={() => setCreateChannelOpen(false)}><X size={19}/></button>
             <h2>Создать канал</h2><p className="modal-subtitle">Что будет обсуждаться в новом канале?</p>
             <label>Название канала<input required maxLength={50} value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="например, планы-на-выходные"/></label>
+            <label>Тип канала<select value={newChannelType} onChange={(e) => setNewChannelType(e.target.value as "text" | "voice")}><option value="text">Текстовый</option><option value="voice">Голосовой</option></select></label>
             <button className="primary-button">Создать канал</button>
           </form>
         </div>
