@@ -52,6 +52,7 @@ export default function App() {
   const [memberCardIsOwn, setMemberCardIsOwn] = useState(false);
   const [messageReactions, setMessageReactions] = useState<Record<string, string[]>>({});
   const [messageMenuOpen, setMessageMenuOpen] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<{ id: string; userId: string; author: string; content: string; direct: boolean } | null>(null);
   const [profilePopoverAnchor, setProfilePopoverAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   const [profileUsernameDraft, setProfileUsernameDraft] = useState("");
@@ -645,6 +646,7 @@ export default function App() {
                 ? old[conversationId] : [...(old[conversationId] || []), message]
             }));
             setUnreadDms((old) => ({ ...old, [contact.id]: (old[contact.id] || 0) + 1 }));
+            if (row.metadata?.reply_to_user_id === user.id) showNotice(`${person?.display_name || person?.username || "Пользователь"} ответил на твоё сообщение.`);
           })
           .subscribe();
       });
@@ -692,6 +694,7 @@ export default function App() {
         const row = payload.new as Message;
         const { data: p } = await supabase!.from("profiles").select("*").eq("id", row.user_id).maybeSingle();
         setMessages((old) => old.some((m) => m.id === row.id) ? old : [...old, { ...row, profile: p as Profile | undefined }]);
+        if (row.metadata?.reply_to_user_id === user?.id) showNotice(`${p?.display_name || p?.username || "Пользователь"} ответил на твоё сообщение.`);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (payload) => {
         const old = payload.old as any;
@@ -929,7 +932,8 @@ export default function App() {
     if (!content || !activeDm || !activeDmContact) return;
     if (supabase && user && activeDmContact.conversationId) {
       const { error } = await supabase.from("direct_messages").insert({
-        conversation_id: activeDmContact.conversationId, user_id: user.id, content
+        conversation_id: activeDmContact.conversationId, user_id: user.id, content,
+        metadata: replyTarget?.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
       });
       if (error) { showNotice("Сообщение не отправлено. Возможно, у тебя нет доступа к чату."); return; }
       setDmDraft("");
@@ -937,14 +941,15 @@ export default function App() {
     }
     const item: Message = {
       id: crypto.randomUUID(), channel_id: `dm-${activeDm}`, user_id: "you", content,
-      created_at: new Date().toISOString(), profile: { id: "you", username: "you", display_name: currentName }
+      created_at: new Date().toISOString(), profile: { id: "you", username: "you", display_name: currentName },
+      metadata: replyTarget?.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
     };
     setDmMessages((old) => {
       const next = { ...old, [activeDmKey]: [...(old[activeDmKey] || []), item] };
       localStorage.setItem(`nox-dm-${activeDmKey}`, JSON.stringify(next[activeDmKey]));
       return next;
     });
-    setDmDraft("");
+    setDmDraft(""); setReplyTarget(null);
   }
 
   async function sendMessage(e: FormEvent) {
@@ -961,7 +966,8 @@ export default function App() {
       const local: Message = {
         id: crypto.randomUUID(), channel_id: activeChannel.id, user_id: "you",
         content, created_at: new Date().toISOString(),
-        profile: { id: "you", username: "you", display_name: "Ты" }
+        profile: { id: "you", username: "you", display_name: "Ты" },
+        metadata: replyTarget && !replyTarget.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
       };
       setMessages((old) => [...old, local]);
       const next = [...messages, local];
@@ -971,7 +977,8 @@ export default function App() {
       return;
     }
     const { error } = await supabase.from("messages").insert({
-      channel_id: activeChannel.id, user_id: user.id, content
+      channel_id: activeChannel.id, user_id: user.id, content,
+      metadata: replyTarget && !replyTarget.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
     });
     if (error) {
       const slowmode = error.message.match(/SLOWMODE:(\d+)/);
@@ -984,7 +991,7 @@ export default function App() {
       return;
     }
     if (cooldown > 0) setSlowmodeUntil((old) => ({ ...old, [activeChannel.id]: Date.now() + cooldown * 1000 }));
-    setDraft("");
+    setDraft(""); setReplyTarget(null);
   }
 
   async function deleteMessage(message: Message, direct: boolean) {
@@ -1241,12 +1248,13 @@ export default function App() {
                     <div className="message-actions" onClick={(e) => e.stopPropagation()}>
                       <button type="button" title="❤️" onClick={() => setMessageReactions(old => ({...old,[m.id]: old[m.id]?.includes("❤️") ? old[m.id].filter(x=>x!=="❤️") : [...(old[m.id]||[]),"❤️"]}))}>❤️</button>
                       <button type="button" title="💀" onClick={() => setMessageReactions(old => ({...old,[m.id]: old[m.id]?.includes("💀") ? old[m.id].filter(x=>x!=="💀") : [...(old[m.id]||[]),"💀"]}))}>💀</button>
-                      <button type="button" title="Ответить" onClick={() => setDmDraft(`↪ ${sender}: ${m.content.startsWith("GIF:") ? "[GIF]" : m.content}\n`)}><Reply size={15}/></button>
+                      <button type="button" title="Ответить" onClick={() => {setReplyTarget({id:m.id,userId:m.user_id,author:sender,content:m.content,direct:true});setDmDraft("");}}><Reply size={15}/></button>
                       <button type="button" title="Копировать" onClick={() => void navigator.clipboard?.writeText(m.content.startsWith("GIF:") ? m.content.slice(4) : m.content)}><Forward size={15}/></button>
                       <button type="button" title="Ещё" onClick={() => setMessageMenuOpen(messageMenuOpen===m.id?null:m.id)}><MoreHorizontal size={16}/></button>
                       {messageMenuOpen===m.id && <div className="message-more-menu">{isOwn && <button type="button" onClick={() => {setMessageMenuOpen(null);void deleteMessage(m,true);}}><Trash2 size={14}/> Удалить сообщение</button>}<button type="button" onClick={() => {setMessageMenuOpen(null);void navigator.clipboard?.writeText(m.content);}}>Копировать текст</button></div>}
                     </div>
                   </div>
+                  {m.metadata?.reply_to && <div className="message-reply-quote"><b>{m.metadata.reply_author || "Ответ"}</b><span>{m.metadata.reply_content || "Сообщение"}</span></div>}
                   {!!messageReactions[m.id]?.length && <div className="message-reaction-chips">{messageReactions[m.id].map(emoji=><span key={emoji}>{emoji}</span>)}</div>}
                   {m.message_type === "server_invite" && m.metadata?.server_id ? <div className="dm-server-invite-card">
                     <div className="dm-server-invite-cover"><span>{initials(m.metadata.server_name || "N")}</span></div>
@@ -1265,6 +1273,7 @@ export default function App() {
           </div>
           <div className="composer-wrap">
             {gifPickerFor === "dm" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…" autoFocus/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.images?.original?.url || gif.images?.fixed_width?.url || gif.images?.fixed_width_small?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, true)}><img src={gif.images?.fixed_width_small?.url || gif.images?.fixed_width?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">Powered by GIPHY</small></div>}
+            {replyTarget?.direct && <div className="reply-composer-banner"><span>Ответ для <b>{replyTarget.author}</b>: {replyTarget.content.startsWith("GIF:") ? "[GIF]" : replyTarget.content}</span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
             <form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "dm" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "dm" ? null : "dm"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form>
           </div>
         </> : <div className="home-content">
@@ -1340,12 +1349,13 @@ export default function App() {
                     <div className="message-actions" onClick={(e) => e.stopPropagation()}>
                       <button type="button" title="❤️" onClick={() => setMessageReactions(old => ({...old,[message.id]: old[message.id]?.includes("❤️") ? old[message.id].filter(x=>x!=="❤️") : [...(old[message.id]||[]),"❤️"]}))}>❤️</button>
                       <button type="button" title="💀" onClick={() => setMessageReactions(old => ({...old,[message.id]: old[message.id]?.includes("💀") ? old[message.id].filter(x=>x!=="💀") : [...(old[message.id]||[]),"💀"]}))}>💀</button>
-                      <button type="button" title="Ответить" onClick={() => setDraft(`↪ ${name}: ${message.content.startsWith("GIF:") ? "[GIF]" : message.content}\n`)}><Reply size={15}/></button>
+                      <button type="button" title="Ответить" onClick={() => {setReplyTarget({id:message.id,userId:message.user_id,author:name,content:message.content,direct:false});setDraft("");}}><Reply size={15}/></button>
                       <button type="button" title="Копировать" onClick={() => void navigator.clipboard?.writeText(message.content.startsWith("GIF:") ? message.content.slice(4) : message.content)}><Forward size={15}/></button>
                       <button type="button" title="Ещё" onClick={() => setMessageMenuOpen(messageMenuOpen===message.id?null:message.id)}><MoreHorizontal size={16}/></button>
                       {messageMenuOpen===message.id && <div className="message-more-menu">{isOwn && <button type="button" onClick={() => {setMessageMenuOpen(null);void deleteMessage(message,false);}}><Trash2 size={14}/> Удалить сообщение</button>}<button type="button" onClick={() => {setMessageMenuOpen(null);void navigator.clipboard?.writeText(message.content);}}>Копировать текст</button></div>}
                     </div>
                   </div>
+                  {message.metadata?.reply_to && <div className="message-reply-quote"><b>{message.metadata.reply_author || "Ответ"}</b><span>{message.metadata.reply_content || "Сообщение"}</span></div>}
                   {!!messageReactions[message.id]?.length && <div className="message-reaction-chips">{messageReactions[message.id].map(emoji=><span key={emoji}>{emoji}</span>)}</div>}
                   <MessageContent content={message.content} />
                 </div>
@@ -1356,6 +1366,7 @@ export default function App() {
 
         <div className="composer-wrap">
           {gifPickerFor === "channel" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…"/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.images?.original?.url || gif.images?.fixed_width?.url || gif.images?.fixed_width_small?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, false)}><img src={gif.images?.fixed_width_small?.url || gif.images?.fixed_width?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">Powered by GIPHY</small></div>}
+          {replyTarget && !replyTarget.direct && <div className="reply-composer-banner"><span>Ответ для <b>{replyTarget.author}</b>: {replyTarget.content.startsWith("GIF:") ? "[GIF]" : replyTarget.content}</span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
           <form className="composer" onSubmit={sendMessage}>
             <label className="composer-plus" title="Прикрепить файл"><Plus size={22}/><input type="file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setDraft((d) => `${d}${d ? " " : ""}[Файл: ${file.name}]`); e.currentTarget.value = ""; }}/></label>
             <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={slowmodeRemaining > 0} placeholder={slowmodeRemaining > 0 ? `Можно написать через ${slowmodeRemaining} сек.` : `Написать в #${activeChannel?.name || "канал"}`} aria-label="Сообщение" />
