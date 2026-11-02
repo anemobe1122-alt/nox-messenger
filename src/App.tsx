@@ -1016,6 +1016,37 @@ export default function App() {
     showNotice("Ты вышел из аккаунта.");
   }
 
+  async function buyNitro() {
+    if (!supabase || !user) {
+      setAuthMode("signin"); setShowAuth(true);
+      showNotice("Войди в аккаунт, чтобы оформить покупку Nitro.");
+      return;
+    }
+    const { data: ownerRows, error: ownerError } = await supabase.rpc("get_nox_owner_profile");
+    const owner = Array.isArray(ownerRows) ? ownerRows[0] : ownerRows;
+    if (ownerError || !owner?.id) {
+      showNotice("Не удалось найти владельца Nox. Администратору нужно применить supabase/nitro-purchase.sql.");
+      return;
+    }
+    if (owner.id === user.id) {
+      showNotice("Ты владелец Nox — заявка на покупку самому себе не нужна.");
+      return;
+    }
+    let conversationId = dmContacts.find(contact => contact.id === owner.id)?.conversationId;
+    if (!conversationId) {
+      const { data, error } = await supabase.rpc("create_or_get_direct_conversation", { target_user_id: owner.id });
+      if (error || !data) { showNotice("Не удалось открыть личный чат: " + (error?.message || "ошибка создания")); return; }
+      conversationId = data as string;
+    }
+    const content = "Привет! Хочу купить Nox Nitro за 100 рублей 💎";
+    const { error: sendError } = await supabase.from("direct_messages").insert({ conversation_id: conversationId, user_id: user.id, content });
+    if (sendError) { showNotice("Чат открылся, но сообщение не отправилось: " + sendError.message); return; }
+    const contact = { id: owner.id, username: owner.username, display_name: owner.display_name, avatar_url: owner.avatar_url, conversationId } as DmContact;
+    setDmContacts(old => [contact, ...old.filter(item => item.id !== owner.id)]);
+    setActiveDm(owner.id); setActiveView("home"); setActiveHomeTab("Сообщения"); setSidebarOpen(false);
+    showNotice("Заявка на Nitro отправлена! Владелец ответит в личных сообщениях.");
+  }
+
   async function openDirectChat(person: Profile) {
     if (!supabase || !user) {
       setAuthMode("signup"); setShowAuth(true);
@@ -1497,8 +1528,20 @@ export default function App() {
             <form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "dm" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "dm" ? null : "dm"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form>
           </div>
         </> : <div className="home-content">
-          <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Сообщения" || activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Начни личную беседу или продолжи общение." : activeHomeTab === "Nitro" ? "Дополнительные возможности появятся позже." : activeHomeTab === "Магазин" ? "Магазин оформления появится позже." : "Общайся, открывай сообщества и оставайся на связи."}</p>{homeActionLabel && <button onClick={() => setSearchOpen(true)}><UserRound size={17}/> {homeActionLabel}</button>}</div>
-          {activeHomeTab === "Друзья" ? <div className="friend-sections">
+          <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Сообщения" || activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Начни личную беседу или продолжи общение." : activeHomeTab === "Nitro" ? "Больше возможностей и оформление профиля с Nox Nitro." : activeHomeTab === "Магазин" ? "Магазин оформления появится позже." : "Общайся, открывай сообщества и оставайся на связи."}</p>{homeActionLabel && <button onClick={() => setSearchOpen(true)}><UserRound size={17}/> {homeActionLabel}</button>}</div>
+          {activeHomeTab === "Nitro" ? <section className="nitro-shop">
+            <div className="nitro-shop-card">
+              <div className="nitro-shop-gem">💎</div>
+              <span className="nitro-shop-eyebrow">NOX PREMIUM</span>
+              <h2>Nox Nitro</h2>
+              <p>Открой дополнительные возможности и выделяйся среди участников Nox.</p>
+              <div className="nitro-shop-price">100 ₽ <small>/ покупка</small></div>
+              <ul><li>💎 Значок Nitro в профиле</li><li>🎨 Украшение профиля: рамки и цвета</li><li>✨ Премиальный вид аккаунта</li></ul>
+              {profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() && <p className="nitro-shop-active">Nitro активен до {new Date(profile.nitro_expires_at).toLocaleDateString("ru-RU")}</p>}
+              <button className="nitro-buy-button" onClick={() => void buyNitro()} disabled={!user}>Купить за 100 ₽</button>
+              <small className="nitro-shop-note">Нажатие отправит заявку владельцу в личные сообщения. Оплата и выдача Nitro подтверждаются вручную.</small>
+            </div>
+          </section> : activeHomeTab === "Друзья" ? <div className="friend-sections">
             {!user && <p className="friend-empty">Войди в аккаунт, чтобы добавлять друзей и видеть заявки.</p>}
             {incomingFriendRequests.length > 0 && <section className="friend-section">
               <h2>Заявки в друзья <span>{incomingFriendRequests.length}</span></h2>
