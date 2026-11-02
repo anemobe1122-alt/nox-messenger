@@ -401,9 +401,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .message-meta { display: flex; align-items: baseline; gap: 9px; margin-bottom: 4px; }
 .message-meta strong { font-size: 12px; color: #f0eff7; }
 .message-meta time { font-size: 10px; color: #777988; }
-.message-delete-button { width: 28px; height: 28px; margin: -7px 0 -7px auto; border: 0; border-radius: 6px; display: grid; place-items: center; flex: 0 0 auto; color: #949ba4; background: transparent; opacity: 0; transition: color .15s, background .15s, opacity .15s; }
-.message-delete-button:hover { color: #fff; background: #da373c; }
-.message-row:hover .message-delete-button, .message-delete-button:focus-visible { opacity: 1; }
+
 .message-body p { color: #d0d0db; font-size: 12px; line-height: 1.65; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .composer-wrap { padding: 10px 19px 12px; flex: 0 0 auto; position: relative; }
@@ -811,3 +809,17 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .message-name-trigger:hover { text-decoration: underline; }
 .member-profile-card { z-index: 120; }
 .member-profile-card .profile-card-avatar { width: 76px; height: 76px; margin-top: -48px; border: 5px solid #23242c; border-radius: 50%; object-fit: cover; }
+
+
+/* Discord-like message hover toolbar */
+.message-row { position: relative; }
+.message-actions { position:absolute; z-index:8; right:10px; top:-17px; display:flex; align-items:center; gap:2px; padding:3px 5px; border:1px solid #3b3d48; border-radius:9px; background:#17181f; box-shadow:0 5px 18px #0008; opacity:0; visibility:hidden; transform:translateY(3px); transition:opacity .13s,transform .13s,visibility .13s; }
+.message-row:hover .message-actions,.message-actions:focus-within { opacity:1; visibility:visible; transform:translateY(0); }
+.message-actions>button { width:27px; height:27px; display:grid; place-items:center; border:0; border-radius:6px; color:#b9bac7; background:transparent; font-size:15px; }
+.message-actions>button:hover { color:#fff; background:#343641; }
+.message-more-menu { position:absolute; top:34px; right:0; min-width:150px; padding:5px; border:1px solid #41434d; border-radius:8px; background:#20212a; box-shadow:0 8px 22px #0009; }
+.message-more-menu button { width:100%; display:flex; align-items:center; gap:7px; padding:8px; border:0; border-radius:5px; color:#ddd; background:transparent; text-align:left; font-size:11px; }
+.message-more-menu button:hover { background:#343641; }
+.message-reaction-chips { display:flex; gap:5px; margin:5px 0; }
+.message-reaction-chips span { padding:2px 7px; border:1px solid #454657; border-radius:12px; background:#292a35; font-size:12px; }
+@media (hover:none) { .message-actions { opacity:1; visibility:visible; transform:none; } }
