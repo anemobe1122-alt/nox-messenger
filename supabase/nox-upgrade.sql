@@ -463,3 +463,75 @@ alter table public.profiles
   add column if not exists bio text not null default '' check (char_length(bio) <= 190);
 grant update (username, display_name, bio) on public.profiles to authenticated;
 notify pgrst, 'reload schema';
+
+
+-- Nox Nitro: admin-controlled premium access.
+alter table public.profiles
+  add column if not exists nitro_expires_at timestamptz;
+
+create table if not exists public.nox_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.nox_admins enable row level security;
+revoke all on public.nox_admins from anon, authenticated;
+
+grant select (nitro_expires_at) on public.profiles to authenticated;
+
+create or replace function public.is_nox_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.nox_admins a where a.user_id = auth.uid());
+$$;
+revoke all on function public.is_nox_admin() from public;
+grant execute on function public.is_nox_admin() to authenticated;
+
+create or replace function public.admin_grant_nitro(target_username text, duration_days integer)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare new_expiry timestamptz;
+begin
+  if auth.uid() is null or not exists (select 1 from public.nox_admins a where a.user_id = auth.uid()) then
+    raise exception 'Недостаточно прав администратора';
+  end if;
+  if duration_days is null or duration_days < 1 or duration_days > 3650 then
+    raise exception 'Срок Nitro должен быть от 1 до 3650 дней';
+  end if;
+  update public.profiles p
+    set nitro_expires_at = greatest(coalesce(p.nitro_expires_at, now()), now()) + make_interval(days => duration_days)
+    where lower(p.username) = lower(trim(both '@' from target_username))
+    returning p.nitro_expires_at into new_expiry;
+  if new_expiry is null then raise exception 'Пользователь с таким ником не найден'; end if;
+  return new_expiry;
+end;
+$$;
+revoke all on function public.admin_grant_nitro(text, integer) from public;
+grant execute on function public.admin_grant_nitro(text, integer) to authenticated;
+
+create or replace function public.admin_revoke_nitro(target_username text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare changed integer;
+begin
+  if auth.uid() is null or not exists (select 1 from public.nox_admins a where a.user_id = auth.uid()) then
+    raise exception 'Недостаточно прав администратора';
+  end if;
+  update public.profiles p set nitro_expires_at = null
+    where lower(p.username) = lower(trim(both '@' from target_username)) and p.nitro_expires_at is not null;
+  get diagnostics changed = row_count;
+  return changed > 0;
+end;
+$$;
+revoke all on function public.admin_revoke_nitro(text) from public;
+grant execute on function public.admin_revoke_nitro(text) to authenticated;
+notify pgrst, 'reload schema';
