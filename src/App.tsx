@@ -27,9 +27,10 @@ function initials(value: string) {
 function ProfileAvatar({ profile, name, className, avatarBackground }: { profile?: Profile | null; name: string; className: string; avatarBackground?: string }) {
   const avatarUrl = profile?.avatar_url || "";
   const isGifAvatar = /\\.gif(?:$|[?#])/i.test(avatarUrl);
+  const avatarImageClass = className.replace(/nitro-frame-[\\w-]+/g, "").trim();
   const avatar = avatarUrl && !isGifAvatar
-    ? <img className={`${className} profile-avatar-image`} src={avatarUrl} alt={`${name} — аватар`} />
-    : <span className={className}>{initials(name)}</span>;
+    ? <img className={`${avatarImageClass} profile-avatar-image`} src={avatarUrl} alt={`${name} — аватар`} />
+    : <span className={avatarImageClass}>{initials(name)}</span>;
   const avatarWithBackground = <span className={`avatar-background-wrap ${className}`} style={avatarBackground ? { backgroundColor: avatarBackground } : undefined}>{avatar}</span>;
   return profile?.presence_status ? <span className="avatar-presence-wrap">{avatarWithBackground}<i className={`presence-dot status-${profile.presence_status}`} title={profile.presence_status === "invisible" ? "Не в сети" : presenceLabel(profile.presence_status)} /></span> : avatarWithBackground;
 }
