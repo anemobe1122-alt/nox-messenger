@@ -891,3 +891,28 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .nitro-frame-sakura { outline:3px dotted #f9a8d4; outline-offset:3px; box-shadow:0 0 14px #ec4899aa; }
 .nitro-frame-matrix { outline:3px dashed #4ade80; outline-offset:3px; box-shadow:0 0 12px #22c55eaa; }
 @media (max-width:420px) { .nitro-frame-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+
+.avatar-background-wrap { display:inline-grid; place-items:center; overflow:hidden; border-radius:inherit; background:transparent; }
+.avatar-background-wrap > .avatar,.avatar-background-wrap > .profile-avatar-image { background:transparent; }
+.profile-edit-modal { width:min(980px,calc(100vw - 32px)); max-height:min(900px,calc(100dvh - 32px)); display:grid; grid-template-columns:minmax(270px,.92fr) minmax(300px,1.08fr); grid-template-rows:auto minmax(0,1fr); align-items:start; gap:0 22px; overflow:hidden; padding:22px; }
+.profile-edit-modal > .modal-close { z-index:3; }
+.profile-editor-controls { min-width:0; max-height:calc(100dvh - 92px); overflow-y:auto; padding:2px 8px 8px 2px; scrollbar-width:thin; scrollbar-color:#62558e transparent; }
+.profile-editor-controls h2 { text-align:left; margin:0 34px 17px 0; font-size:21px; }
+.profile-editor-controls .modal-actions { position:sticky; bottom:0; padding:12px 0 2px; background:linear-gradient(transparent,#24252e 20%); }
+.profile-editor-preview { min-width:0; align-self:stretch; padding:38px 0 12px; display:flex; flex-direction:column; gap:12px; }
+.profile-preview-label { color:#9d9eae; font-size:10px; font-weight:800; letter-spacing:.1em; }
+.profile-preview-card { overflow:hidden; border:1px solid #3b3c49; border-radius:14px; background:#111216; box-shadow:0 15px 40px #0005; }
+.profile-preview-banner { height:142px; background-size:cover; background-position:center; }
+.profile-preview-content { position:relative; display:flex; flex-direction:column; align-items:flex-start; padding:0 22px 22px; }
+.profile-preview-avatar { width:92px; height:92px; display:grid; place-items:center; margin-top:-46px; margin-bottom:13px; border:7px solid #111216; border-radius:50%; }
+.profile-preview-avatar .avatar,.profile-preview-avatar .avatar-presence-wrap,.profile-preview-avatar .avatar-background-wrap { width:78px; height:78px; border-radius:50%; }
+.profile-preview-content > strong { font-size:20px; color:#f2f3f5; }
+.profile-preview-content > span:not(.nox-nitro-badge) { color:#aeb0b6; font-size:12px; margin-top:3px; }
+.profile-preview-content p { width:100%; min-height:54px; margin:17px 0 0; padding-top:14px; border-top:1px solid #343640; color:#d1d2d8; font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.profile-preview-tip { color:#9294a3; font-size:11px; line-height:1.5; }
+.profile-edit-modal .profile-edit-avatar-row { border:1px solid #3a3b48; }
+.profile-edit-modal .nitro-customize { margin:16px 0 4px; }
+.profile-edit-modal .nitro-customize label,.profile-edit-modal .profile-editor-controls > label { display:flex; flex-direction:column; gap:7px; margin:12px 0; }
+.profile-edit-modal .nitro-customize input[type=color] { height:42px; cursor:pointer; }
+@media(max-width:720px) { .profile-edit-modal { width:min(520px,calc(100vw - 16px)); max-height:calc(100dvh - 16px); grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); padding:16px; gap:0; overflow-y:auto; } .profile-editor-controls { max-height:none; overflow:visible; padding:0 2px 12px; } .profile-editor-preview { padding:14px 2px 6px; } .profile-preview-banner { height:105px; } }
