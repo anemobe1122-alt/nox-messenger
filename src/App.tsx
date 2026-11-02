@@ -935,7 +935,7 @@ export default function App() {
         conversation_id: activeDmContact.conversationId, user_id: user.id, content,
         metadata: replyTarget?.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
       });
-      if (error) { showNotice("Сообщение не отправлено. Возможно, у тебя нет доступа к чату."); return; }
+      if (error) { console.error("Nox direct message insert failed:", error); showNotice(`Ошибка отправки: ${error.message}`); return; }
       setDmDraft(""); setReplyTarget(null);
       return;
     }
