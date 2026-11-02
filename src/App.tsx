@@ -657,6 +657,7 @@ export default function App() {
         delete voiceMeterCleanupRef.current[speakerId];
       };
     };
+    if (voiceStreamRef.current) startVoiceMeter(voiceStreamRef.current, user.id);
     const sendSignal = (payload: any) => room.send({ type: "broadcast", event: "signal", payload: { ...payload, from: user.id } });
     const makePeer = (peerId: string) => {
       if (voiceConnectionsRef.current[peerId]) return voiceConnectionsRef.current[peerId];
@@ -1525,8 +1526,8 @@ export default function App() {
           <div className="voice-room-icon"><Headphones size={28}/></div><h2>{activeChannel.name}</h2>
           <p>{activeVoiceChannelId === activeChannel.id ? "Ты подключён к голосовому каналу" : "Голосовой канал Nox"}</p>
           <div className="voice-participants">
-            {activeVoiceChannelId === activeChannel.id && <div className="voice-participant"><ProfileAvatar profile={profile} name={currentName} className="avatar"/><span>{currentName} (ты)</span><i className={voiceMuted ? "muted" : ""}/></div>}
-            {voicePeers.map(peer => <div className="voice-participant" key={peer.id}><span className="voice-peer-avatar">{initials(peer.displayName || peer.username)}</span><span>{peer.displayName || peer.username}</span><i/></div>)}
+            {activeVoiceChannelId === activeChannel.id && <div className={`voice-participant ${voiceSpeakingIds.includes(user?.id || "") ? "is-speaking" : ""}`}><ProfileAvatar profile={profile} name={currentName} className="avatar"/><span>{currentName} (ты)</span><i className={voiceMuted ? "muted" : ""}/>{voiceSpeakingIds.includes(user?.id || "") && <b className="speaking-label">Говорит</b>}</div>}
+            {voicePeers.map(peer => <div className={`voice-participant ${voiceSpeakingIds.includes(peer.id) ? "is-speaking" : ""}`} key={peer.id}><span className="voice-peer-avatar">{initials(peer.displayName || peer.username)}</span><span>{peer.displayName || peer.username}</span><i/>{voiceSpeakingIds.includes(peer.id) && <b className="speaking-label">Говорит</b>}</div>)}
             {!activeVoiceChannelId && <span className="voice-empty">Пока никого нет. Подключись первым!</span>}
           </div>
           <div className="voice-controls">{activeVoiceChannelId === activeChannel.id ? <>
