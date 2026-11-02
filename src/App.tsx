@@ -17,10 +17,11 @@ type Channel = { id: string; server_id: string; name: string; type?: string; slo
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile; message_type?: "text" | "server_invite"; metadata?: Record<string, any> | null };
 type GiphyGif = { id: string; title?: string; images?: { original?: { url?: string }; fixed_width?: { url?: string }; fixed_width_small?: { url?: string } } };
 function MessageContent({ content }: { content: string }) {
-  if (content.startsWith("MEDIA:")) {
-    const [, kind, url] = content.split(":", 3);
-    if (kind === "image" && /^https:\/\//i.test(url || "")) return <a className="message-media-link" href={url} target="_blank" rel="noreferrer"><img className="message-image" src={url} alt="Изображение" loading="lazy"/></a>;
-    if (kind === "video" && /^https:\/\//i.test(url || "")) return <video className="message-video" src={url} controls playsInline preload="metadata"/>;
+  const mediaMatch = content.match(/^MEDIA:(image|video):(https:\/\/.*)$/i);
+  if (mediaMatch) {
+    const [, kind, url] = mediaMatch;
+    if (kind.toLowerCase() === "image") return <a className="message-media-link" href={url} target="_blank" rel="noreferrer"><img className="message-image" src={url} alt="Изображение" loading="lazy"/></a>;
+    return <video className="message-video" src={url} controls playsInline preload="metadata"/>;
   }
   if (content.startsWith("GIF:")) { const url = content.slice(4).trim(); if (/^https:\/\//i.test(url)) return <a className="message-gif-link" href={url} target="_blank" rel="noreferrer"><img className="message-gif" src={url} alt="GIF" loading="lazy" /></a>; }
   return <p>{content}</p>;
