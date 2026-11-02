@@ -1440,7 +1440,7 @@ export default function App() {
     const container = activeDm ? dmScrollRef.current : channelScrollRef.current;
     if (!container) return;
     const frame = window.requestAnimationFrame(() => {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      container.scrollTop = container.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
   }, [activeDm, activeDmKey, activeChannelId, dmMessages, visibleMessages.length]);
