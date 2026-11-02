@@ -834,6 +834,14 @@ export default function App() {
         profile: Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
       })) as Message[];
       setDmMessages((old) => ({ ...old, [conversationId]: rows }));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const container = dmScrollRef.current;
+          if (container && activeDmKey === conversationId) {
+            container.scrollTop = container.scrollHeight;
+          }
+        });
+      });
     })();
     const channel = supabase.channel(`direct-messages:${conversationId}`)
       .on("postgres_changes", {
