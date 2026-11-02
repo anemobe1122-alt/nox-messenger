@@ -686,13 +686,18 @@ export default function App() {
       try {
         if (payload.description?.type === "offer") {
           await pc.setRemoteDescription(payload.description);
+          for (const candidate of pendingIce[payload.from] || []) await pc.addIceCandidate(candidate);
+          delete pendingIce[payload.from];
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           await sendSignal({ to: payload.from, description: pc.localDescription });
         } else if (payload.description?.type === "answer") {
           await pc.setRemoteDescription(payload.description);
+          for (const candidate of pendingIce[payload.from] || []) await pc.addIceCandidate(candidate);
+          delete pendingIce[payload.from];
         } else if (payload.candidate) {
-          await pc.addIceCandidate(payload.candidate);
+          if (pc.remoteDescription) await pc.addIceCandidate(payload.candidate);
+          else (pendingIce[payload.from] ||= []).push(payload.candidate);
         }
       } catch (error) { console.warn("Voice signaling error", error); }
     });
