@@ -1753,3 +1753,49 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   flex: 0 0 92px !important;
   margin: 0 !important;
 }
+
+
+/* Profile editor's avatar row: clamp every wrapper, not just the inner img. */
+.profile-edit-modal .profile-edit-avatar-row {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 62px !important;
+  overflow: hidden !important;
+}
+.profile-edit-modal .profile-edit-avatar-row > .avatar-presence-wrap,
+.profile-edit-modal .profile-edit-avatar-row > .avatar-background-wrap {
+  position: relative !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  min-height: 42px !important;
+  max-width: 42px !important;
+  max-height: 42px !important;
+  flex: 0 0 42px !important;
+  overflow: visible !important;
+}
+.profile-edit-modal .profile-edit-avatar-row .avatar-background-wrap {
+  overflow: hidden !important;
+  border-radius: 50% !important;
+}
+.profile-edit-modal .profile-edit-avatar-row .profile-edit-avatar,
+.profile-edit-modal .profile-edit-avatar-row .profile-avatar-image {
+  display: block !important;
+  box-sizing: border-box !important;
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  min-height: 42px !important;
+  max-width: 42px !important;
+  max-height: 42px !important;
+  flex: 0 0 42px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+.profile-edit-modal .profile-edit-avatar-row .presence-dot {
+  right: -1px !important;
+  bottom: -1px !important;
+}
