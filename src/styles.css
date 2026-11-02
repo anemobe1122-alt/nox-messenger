@@ -937,3 +937,14 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .profile-edit-avatar-row .avatar-background-wrap { width:58px; height:58px; }
 .profile-popover-banner { flex:0 0 76px; }
 .profile-popover-main { min-width:0; }
+
+
+/* DM sidebar: avatar wrapper must stay icon-sized, never inherit image intrinsic dimensions */
+.dm-list { min-width:0; overflow-x:hidden; }
+.dm-item { display:flex; width:100%; min-width:0; align-items:center; gap:10px; overflow:hidden; }
+.dm-item > .avatar-background-wrap,
+.dm-item > .avatar-presence-wrap { display:inline-grid; position:relative; width:36px; height:36px; min-width:36px; max-width:36px; flex:0 0 36px; place-items:center; overflow:visible; border-radius:50%; }
+.dm-item > .avatar-presence-wrap > .avatar-background-wrap { display:grid; width:100%; height:100%; min-width:0; max-width:none; flex:0 0 auto; overflow:hidden; }
+.dm-item .dm-avatar { display:grid; width:100%; height:100%; min-width:0; max-width:100%; min-height:0; max-height:100%; aspect-ratio:1; object-fit:cover; border-radius:50%; overflow:hidden; }
+.dm-item .dm-name { min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dm-item > i { flex:0 0 8px; }
