@@ -1548,3 +1548,49 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   bottom: 0;
 }
 .profile-bar .profile-copy { flex: 1 1 0; min-width: 0; }
+
+
+/* Member profile popup: pin the avatar wrapper at the center of the banner.
+   ProfileAvatar may add an outer presence wrapper, so size both wrapper levels. */
+.member-profile-card .profile-popover-main > .avatar-presence-wrap,
+.member-profile-card .profile-popover-main > .profile-card-avatar {
+  position: relative !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  width: 76px !important;
+  height: 76px !important;
+  min-width: 76px !important;
+  min-height: 76px !important;
+  max-width: 76px !important;
+  max-height: 76px !important;
+  flex: 0 0 76px !important;
+  margin-top: -48px !important;
+  align-self: flex-start !important;
+  overflow: visible !important;
+}
+.member-profile-card .profile-popover-main > .avatar-presence-wrap > .profile-card-avatar {
+  display: grid !important;
+  width: 66px !important;
+  height: 66px !important;
+  min-width: 66px !important;
+  min-height: 66px !important;
+  max-width: 66px !important;
+  max-height: 66px !important;
+  flex: 0 0 66px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  border-radius: 50% !important;
+}
+.member-profile-card .profile-card-avatar > .avatar,
+.member-profile-card .profile-card-avatar > .profile-avatar-image {
+  display: block !important;
+  width: 66px !important;
+  height: 66px !important;
+  min-width: 66px !important;
+  min-height: 66px !important;
+  max-width: 66px !important;
+  max-height: 66px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
