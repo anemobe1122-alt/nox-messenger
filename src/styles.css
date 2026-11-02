@@ -918,159 +918,53 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 @media(max-width:720px) { .profile-edit-modal { width:min(520px,calc(100vw - 16px)); max-height:calc(100dvh - 16px); grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); padding:16px; gap:0; overflow-y:auto; } .profile-editor-controls { max-height:none; overflow:visible; padding:0 2px 12px; } .profile-editor-preview { padding:14px 2px 6px; } .profile-preview-banner { height:105px; } }
 
 
-/* Fix avatar clipping in profile popovers after adding the background wrapper */
-.profile-popover { isolation:isolate; }
-.profile-popover-main { position:relative; padding-top:46px; }
-.profile-popover-avatar { position:absolute; top:-30px; left:15px; margin-top:0; z-index:2; display:grid; place-items:center; }
-.profile-popover-avatar .avatar-presence-wrap,
-.profile-popover-avatar .avatar-background-wrap { display:grid; width:58px; height:58px; place-items:center; border-radius:50%; }
-.profile-popover-avatar .avatar-background-wrap > .avatar,
-.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image { display:grid; width:100%; height:100%; place-items:center; border-radius:50%; object-fit:cover; }
-.profile-popover-avatar .avatar-background-wrap { overflow:visible; }
-.member-profile-card .profile-popover-main { padding-top:48px; }
-.member-profile-card .profile-card-avatar { position:absolute; top:-48px; left:15px; width:76px; height:76px; margin:0; border:5px solid #23242c; border-radius:50%; object-fit:cover; z-index:2; }
-.member-profile-card .avatar-background-wrap { position:absolute; top:-48px; left:15px; display:grid; width:76px; height:76px; place-items:center; overflow:visible; border:5px solid #23242c; border-radius:50%; }
-.member-profile-card .avatar-background-wrap > .profile-card-avatar { position:static; display:grid; width:100%; height:100%; margin:0; border:0; border-radius:50%; object-fit:cover; }
-.avatar-background-wrap { display:inline-grid; flex:0 0 auto; place-items:center; overflow:visible; border-radius:inherit; }
+
+
+/* Stable avatar wrapper sizing without changing the original profile-card layout */
+.avatar-background-wrap {
+  display:inline-grid;
+  flex:0 0 auto;
+  place-items:center;
+  overflow:hidden;
+  border-radius:50%;
+}
+.avatar-background-wrap > img,
 .avatar-background-wrap > .avatar,
-.avatar-background-wrap > .profile-avatar-image { display:grid; width:100%; height:100%; place-items:center; border-radius:inherit; object-fit:cover; }
-.profile-edit-avatar-row .avatar-background-wrap { width:58px; height:58px; }
-.profile-popover-banner { flex:0 0 76px; }
-.profile-popover-main { min-width:0; }
+.avatar-background-wrap > .profile-avatar-image {
+  display:block;
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  max-width:100%;
+  max-height:100%;
+  aspect-ratio:1;
+  border-radius:inherit;
+  object-fit:cover;
+}
+.profile-popover-avatar .avatar-background-wrap {
+  width:58px;
+  height:58px;
+  min-width:58px;
+  min-height:58px;
+}
+.profile-popover-avatar .avatar-background-wrap > .avatar,
+.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image {
+  width:58px;
+  height:58px;
+}
 
-
-/* DM sidebar: avatar wrapper must stay icon-sized, never inherit image intrinsic dimensions */
+/* Keep DM avatars compact without touching profile popovers */
 .dm-list { min-width:0; overflow-x:hidden; }
 .dm-item { display:flex; width:100%; min-width:0; align-items:center; gap:10px; overflow:hidden; }
 .dm-item > .avatar-background-wrap,
-.dm-item > .avatar-presence-wrap { display:inline-grid; position:relative; width:36px; height:36px; min-width:36px; max-width:36px; flex:0 0 36px; place-items:center; overflow:visible; border-radius:50%; }
-.dm-item > .avatar-presence-wrap > .avatar-background-wrap { display:grid; width:100%; height:100%; min-width:0; max-width:none; flex:0 0 auto; overflow:hidden; }
-.dm-item .dm-avatar { display:grid; width:100%; height:100%; min-width:0; max-width:100%; min-height:0; max-height:100%; aspect-ratio:1; object-fit:cover; border-radius:50%; overflow:hidden; }
+.dm-item > .avatar-presence-wrap {
+  display:inline-grid; position:relative; width:36px; height:36px;
+  min-width:36px; max-width:36px; flex:0 0 36px;
+  place-items:center; overflow:visible; border-radius:50%;
+}
+.dm-item .dm-avatar {
+  display:block; width:100%; height:100%; min-width:0; max-width:100%;
+  min-height:0; max-height:100%; aspect-ratio:1; object-fit:cover; border-radius:50%;
+}
 .dm-item .dm-name { min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.dm-item > i { flex:0 0 8px; }
-
-
-/* Global avatar wrapper sizing: keep the wrapper tied to the intended avatar slot */
-.avatar-background-wrap { width:36px; height:36px; min-width:0; min-height:0; flex:0 0 auto; overflow:hidden; border-radius:50%; }
-.avatar-background-wrap > img,
-.avatar-background-wrap > .profile-avatar-image,
-.avatar-background-wrap > .avatar { display:grid; width:100%; height:100%; min-width:0; min-height:0; max-width:100%; max-height:100%; aspect-ratio:1; object-fit:cover; border-radius:inherit; }
-.avatar-background-wrap.dm-avatar { width:36px; height:36px; }
-.avatar-background-wrap.self-avatar { width:34px; height:34px; }
-.avatar-background-wrap.message-avatar { width:36px; height:36px; }
-.avatar-background-wrap.dm-conversation-avatar { width:44px; height:44px; }
-.avatar-background-wrap.member-avatar { width:32px; height:32px; }
-.avatar-background-wrap.profile-edit-avatar { width:58px; height:58px; }
-.profile-edit-avatar-row .avatar-background-wrap { width:58px; height:58px; }
-.profile-popover-avatar > .avatar-background-wrap { width:68px; height:68px; }
-.profile-preview-avatar > .avatar-background-wrap { width:78px; height:78px; }
-.dm-item > .avatar-background-wrap { width:36px; height:36px; min-width:36px; max-width:36px; }
-.friend-row > .avatar-background-wrap { width:36px; height:36px; min-width:36px; max-width:36px; }
-
-
-/* Profile popover: animated GIF avatar + Nitro frame must occupy one fixed circle */
-.profile-popover-main { padding-top:74px !important; }
-.profile-popover-avatar { top:-38px !important; left:15px; width:68px; height:68px; padding:3px; overflow:visible; }
-.profile-popover-avatar > .avatar-presence-wrap { position:relative; display:grid; width:58px; height:58px; flex:0 0 58px; place-items:center; overflow:visible; }
-.profile-popover-avatar .avatar-presence-wrap > .avatar-background-wrap { display:grid; width:58px; height:58px; min-width:58px; min-height:58px; flex:0 0 58px; place-items:center; overflow:visible; border-radius:50%; }
-.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image,
-.profile-popover-avatar .avatar-background-wrap > .avatar { display:block; width:58px; height:58px; min-width:58px; min-height:58px; max-width:58px; max-height:58px; object-fit:cover; border-radius:50%; }
-.profile-popover-avatar .presence-dot { right:-2px; bottom:-2px; z-index:4; }
-.profile-popover-main > strong { position:relative; z-index:1; margin-top:7px; }
-
-
-/* Keep profile avatars and Nitro frames inside their fixed profile-card slots */
-.profile-popover-main { position:relative; min-width:0; padding-top:48px; }
-.profile-popover-avatar {
-  position:absolute; top:-30px; left:15px; z-index:3;
-  display:grid; place-items:center; width:68px; height:68px;
-  margin:0; padding:3px; overflow:visible;
-}
-.profile-popover-avatar > .avatar-presence-wrap {
-  position:relative; display:grid; place-items:center;
-  width:58px; height:58px; min-width:58px; flex:0 0 58px; overflow:visible;
-}
-.profile-popover-avatar .avatar-background-wrap {
-  display:grid; place-items:center; width:58px; height:58px;
-  min-width:58px; min-height:58px; flex:0 0 58px; overflow:visible;
-  border-radius:50%;
-}
-.profile-popover-avatar .avatar-background-wrap > .avatar,
-.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image {
-  display:block; width:100%; height:100%; min-width:0; min-height:0;
-  max-width:100%; max-height:100%; margin:0; border-radius:50%; object-fit:cover;
-}
-.profile-popover-avatar > svg { position:absolute; right:0; bottom:1px; z-index:4; }
-
-.member-profile-card .profile-popover-main { padding-top:48px; }
-.member-profile-card .profile-popover-main > .avatar-presence-wrap {
-  position:absolute; top:-48px; left:15px; z-index:3;
-  display:grid; place-items:center; width:76px; height:76px;
-  min-width:76px; flex:0 0 76px; overflow:visible;
-}
-.member-profile-card .avatar-background-wrap {
-  display:grid; place-items:center; width:66px; height:66px;
-  min-width:66px; min-height:66px; flex:0 0 66px; overflow:visible;
-  border:5px solid #23242c; border-radius:50%;
-}
-.member-profile-card .avatar-background-wrap > .avatar,
-.member-profile-card .avatar-background-wrap > .profile-avatar-image {
-  display:block; width:100%; height:100%; min-width:0; min-height:0;
-  max-width:100%; max-height:100%; margin:0; border:0;
-  border-radius:50%; object-fit:cover;
-}
-.member-profile-card .presence-dot { right:0; bottom:0; z-index:5; }
-
-
-/* Final profile-card layout: frame belongs to the image, never to its wrapper */
-.profile-popover { overflow-x:hidden; }
-.profile-popover-main { position:relative; padding:16px 15px 15px !important; }
-.profile-popover-avatar {
-  position:absolute !important; top:-30px !important; left:15px !important;
-  display:grid !important; place-items:center !important;
-  width:68px !important; height:68px !important; min-width:68px !important;
-  margin:0 !important; padding:3px !important; overflow:visible !important;
-  border:4px solid #1e1f22 !important; border-radius:50% !important;
-  background:#1e1f22 !important;
-}
-.profile-popover-avatar > .avatar-presence-wrap {
-  position:relative !important; display:grid !important; place-items:center !important;
-  width:58px !important; height:58px !important; min-width:58px !important;
-  flex:0 0 58px !important; overflow:visible !important;
-}
-.profile-popover-avatar .avatar-background-wrap {
-  display:grid !important; place-items:center !important;
-  width:58px !important; height:58px !important; min-width:58px !important;
-  min-height:58px !important; flex:0 0 58px !important;
-  overflow:visible !important; border-radius:50% !important;
-}
-.profile-popover-avatar .avatar-background-wrap > .avatar,
-.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image {
-  display:block !important; width:58px !important; height:58px !important;
-  min-width:58px !important; min-height:58px !important;
-  max-width:58px !important; max-height:58px !important;
-  margin:0 !important; border-radius:50% !important; object-fit:cover !important;
-}
-.profile-popover-avatar > svg { position:absolute !important; right:0 !important; bottom:1px !important; z-index:5 !important; }
-.profile-popover-main > strong { margin-top:7px !important; }
-
-.member-profile-card .profile-popover-main { padding-top:48px !important; }
-.member-profile-card .profile-popover-main > .avatar-presence-wrap {
-  position:absolute !important; top:-48px !important; left:15px !important;
-  display:grid !important; place-items:center !important;
-  width:76px !important; height:76px !important; min-width:76px !important;
-  flex:0 0 76px !important; overflow:visible !important;
-}
-.member-profile-card .profile-popover-main > .avatar-presence-wrap .avatar-background-wrap {
-  display:grid !important; place-items:center !important;
-  width:66px !important; height:66px !important; min-width:66px !important;
-  min-height:66px !important; flex:0 0 66px !important;
-  overflow:visible !important; border:5px solid #23242c !important; border-radius:50% !important;
-}
-.member-profile-card .avatar-background-wrap > .profile-card-avatar,
-.member-profile-card .avatar-background-wrap > .profile-avatar-image {
-  display:block !important; width:56px !important; height:56px !important;
-  min-width:56px !important; min-height:56px !important;
-  max-width:56px !important; max-height:56px !important;
-  margin:0 !important; border:0 !important; border-radius:50% !important; object-fit:cover !important;
-}
