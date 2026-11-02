@@ -802,3 +802,12 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .message-gif-link { display:inline-block; max-width:min(360px,100%); margin-top:5px; }
 .message-gif { display:block; max-width:100%; max-height:280px; border-radius:9px; object-fit:contain; }
 @media (max-width:760px) { .gif-picker { right: 0; width: min(440px, calc(100vw - 24px)); } .gif-results { grid-template-columns:repeat(2,minmax(0,1fr)); } .gif-result { height:105px; } }
+
+
+/* Clickable message profiles and compact user cards */
+.message-profile-trigger { flex: 0 0 auto; align-self: flex-start; padding: 0; border: 0; border-radius: 50%; background: transparent; }
+.message-profile-trigger:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.message-name-trigger { padding: 0; border: 0; color: #f2f3f5; background: transparent; font-size: inherit; font-weight: 700; text-align: left; }
+.message-name-trigger:hover { text-decoration: underline; }
+.member-profile-card { z-index: 120; }
+.member-profile-card .profile-card-avatar { width: 76px; height: 76px; margin-top: -48px; border: 5px solid #23242c; border-radius: 50%; object-fit: cover; }
