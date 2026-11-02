@@ -139,9 +139,9 @@ export default function App() {
   const [slowmodeUntil, setSlowmodeUntil] = useState<Record<string, number>>({});
   const [slowmodeRemaining, setSlowmodeRemaining] = useState(0);
   const [members, setMembers] = useState<Profile[]>([]);
-  const [activeView, setActiveView] = useState<"home" | "server">("home");
+  const [activeView, setActiveView] = useState<"home" | "server">(() => (localStorage.getItem("nox-active-view") as "home" | "server") || "home");
   const [activeHomeTab, setActiveHomeTab] = useState("Сообщения");
-  const [activeDm, setActiveDm] = useState("");
+  const [activeDm, setActiveDm] = useState(() => localStorage.getItem("nox-active-dm") || "");
   const [dmContacts, setDmContacts] = useState<DmContact[]>([]);
   const [peopleResults, setPeopleResults] = useState<Profile[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -217,6 +217,12 @@ export default function App() {
   }, []);
 
   useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
+  useEffect(() => {
+    localStorage.setItem("nox-active-view", activeView);
+    localStorage.setItem("nox-active-space", activeSpaceId);
+    localStorage.setItem("nox-active-channel", activeChannelId);
+    localStorage.setItem("nox-active-dm", activeDm);
+  }, [activeView, activeSpaceId, activeChannelId, activeDm]);
 
   useEffect(() => {
     if (!gifPickerFor) return;
@@ -536,14 +542,12 @@ export default function App() {
     }
     setSpaces(nextSpaces);
     setChannelsBySpace(nextMap);
-    if (nextSpaces.length) {
-      setActiveSpaceId(nextSpaces[0].id);
-      const first = nextMap[nextSpaces[0].id]?.[0];
-      setActiveChannelId(first?.id || "");
-    } else {
-      setActiveSpaceId("");
-      setActiveChannelId("");
-    }
+    const savedSpaceId = localStorage.getItem("nox-active-space") || "";
+    const savedChannelId = localStorage.getItem("nox-active-channel") || "";
+    const restoredSpace = nextSpaces.find((space) => space.id === savedSpaceId) || nextSpaces[0];
+    const restoredChannels = restoredSpace ? (nextMap[restoredSpace.id] || []) : [];
+    setActiveSpaceId(restoredSpace?.id || "");
+    setActiveChannelId(restoredChannels.find((channel) => channel.id === savedChannelId)?.id || restoredChannels[0]?.id || "");
   }, [showNotice]);
 
   const loadMessages = useCallback(async (channelId: string) => {
@@ -568,9 +572,7 @@ export default function App() {
       setUser(current);
       if (current) {
         setShowAuth(false);
-        setActiveView("home");
         setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
-        setActiveDm("");
         await loadProfile(current);
         await loadSpaces(current.id);
         await loadDirectContacts(current.id);
@@ -590,9 +592,7 @@ export default function App() {
       }
       else {
         setShowAuth(false);
-        setActiveView("home");
         setSidebarOpen(window.matchMedia("(max-width: 760px)").matches);
-        setActiveDm("");
         window.setTimeout(async () => {
           await loadProfile(current);
           await loadSpaces(current.id);
