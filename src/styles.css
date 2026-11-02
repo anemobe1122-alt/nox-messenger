@@ -1722,3 +1722,34 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   object-fit: cover !important;
   border-radius: 50% !important;
 }
+
+
+/* Profile editor preview uses the same isolated avatar component as profile cards. */
+.profile-edit-modal .profile-preview-avatar {
+  display: grid !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  min-height: 92px !important;
+  max-width: 92px !important;
+  max-height: 92px !important;
+  flex: 0 0 92px !important;
+  margin: -46px 0 13px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  overflow: visible !important;
+  background: transparent !important;
+}
+.profile-edit-modal .profile-preview-avatar > .profile-card-avatar-shell {
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  min-height: 92px !important;
+  max-width: 92px !important;
+  max-height: 92px !important;
+  flex: 0 0 92px !important;
+  margin: 0 !important;
+}
