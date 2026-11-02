@@ -615,6 +615,19 @@ export default function App() {
   useEffect(() => { loadMessages(activeChannelId); }, [activeChannelId, loadMessages]);
 
   useEffect(() => {
+    if (!activeChannel || activeChannel.type !== "voice" || !user || !supabase || activeVoiceChannelId === activeChannel.id) return;
+    const room = supabase.channel(`voice:${activeChannel.id}`, { config: { presence: { key: user.id } } });
+    const syncParticipants = () => {
+      const state = room.presenceState() as Record<string, any[]>;
+      const people = Object.values(state).flat().filter((item: any) => item.user_id);
+      setVoicePeers(people.map((item: any) => ({ id: item.user_id, username: item.username || "user", displayName: item.display_name || item.username || "Участник" })));
+    };
+    room.on("presence", { event: "sync" }, syncParticipants);
+    room.subscribe((status: string) => { if (status === "SUBSCRIBED") syncParticipants(); });
+    return () => { void supabase!.removeChannel(room); setVoicePeers([]); };
+  }, [activeChannel?.id, activeChannel?.type, activeVoiceChannelId, user]);
+
+  useEffect(() => {
     if (!activeVoiceChannelId || !user || !supabase || !voiceStreamRef.current) return;
     const room = supabase.channel(`voice:${activeVoiceChannelId}`, { config: { presence: { key: user.id }, broadcast: { self: false } } });
     voiceRoomRef.current = room;
@@ -1534,7 +1547,7 @@ export default function App() {
           <div className="voice-participants">
             {activeVoiceChannelId === activeChannel.id && <div className={`voice-participant ${voiceSpeakingIds.includes(user?.id || "") ? "is-speaking" : ""}`}><ProfileAvatar profile={profile} name={currentName} className="avatar"/><span>{currentName} (ты)</span><i className={voiceMuted ? "muted" : ""}/>{voiceSpeakingIds.includes(user?.id || "") && <b className="speaking-label">Говорит</b>}</div>}
             {voicePeers.map(peer => <div className={`voice-participant ${voiceSpeakingIds.includes(peer.id) ? "is-speaking" : ""}`} key={peer.id}><span className="voice-peer-avatar">{initials(peer.displayName || peer.username)}</span><span>{peer.displayName || peer.username}</span><i/>{voiceSpeakingIds.includes(peer.id) && <b className="speaking-label">Говорит</b>}</div>)}
-            {!activeVoiceChannelId && <span className="voice-empty">Пока никого нет. Подключись первым!</span>}
+            {voicePeers.length === 0 && activeVoiceChannelId !== activeChannel.id && <span className="voice-empty">Пока никого нет. Подключись первым!</span>}
           </div>
           <div className="voice-controls">{activeVoiceChannelId === activeChannel.id ? <>
             <button className={voiceMuted ? "voice-control-on" : ""} onClick={() => { const next=!voiceMuted; setVoiceMuted(next); voiceStreamRef.current?.getAudioTracks().forEach(track=>track.enabled=!next); }}><Mic size={18}/>{voiceMuted ? "Включить микрофон" : "Выключить микрофон"}</button>
