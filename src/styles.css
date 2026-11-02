@@ -1197,3 +1197,9 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   margin-top:-48px !important;
   margin-bottom:0 !important;
 }
+
+
+/* Fine alignment: own-profile avatar sits slightly left and higher over the banner */
+.profile-popover-avatar {
+  transform: translate(-7px, -5px);
+}
