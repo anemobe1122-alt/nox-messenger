@@ -658,6 +658,7 @@ export default function App() {
       };
     };
     if (voiceStreamRef.current) startVoiceMeter(voiceStreamRef.current, user.id);
+    const pendingIce: Record<string, RTCIceCandidateInit[]> = {};
     const sendSignal = (payload: any) => room.send({ type: "broadcast", event: "signal", payload: { ...payload, from: user.id } });
     const makePeer = (peerId: string) => {
       if (voiceConnectionsRef.current[peerId]) return voiceConnectionsRef.current[peerId];
