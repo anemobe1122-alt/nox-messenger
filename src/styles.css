@@ -1799,3 +1799,59 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   right: -1px !important;
   bottom: -1px !important;
 }
+
+
+/* Nitro avatar frames should touch the actual photo, not float outside the shell. */
+.profile-card-avatar-shell.nitro-frame-violet,
+.profile-card-avatar-shell.nitro-frame-gold,
+.profile-card-avatar-shell.nitro-frame-rainbow,
+.profile-card-avatar-shell.nitro-frame-fire,
+.profile-card-avatar-shell.nitro-frame-ice,
+.profile-card-avatar-shell.nitro-frame-sakura,
+.profile-card-avatar-shell.nitro-frame-matrix {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.profile-card-avatar-shell.nitro-frame-violet::before,
+.profile-card-avatar-shell.nitro-frame-gold::before,
+.profile-card-avatar-shell.nitro-frame-rainbow::before,
+.profile-card-avatar-shell.nitro-frame-fire::before,
+.profile-card-avatar-shell.nitro-frame-ice::before,
+.profile-card-avatar-shell.nitro-frame-sakura::before,
+.profile-card-avatar-shell.nitro-frame-matrix::before {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  inset: 10px;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.profile-card-avatar-shell.nitro-frame-violet::before {
+  border-color: #c4a7ff;
+  box-shadow: 0 0 9px #a78bfa, inset 0 0 5px #a78bfa66;
+}
+.profile-card-avatar-shell.nitro-frame-gold::before {
+  border-color: #f5c451;
+  box-shadow: 0 0 9px #f5c45199;
+}
+.profile-card-avatar-shell.nitro-frame-rainbow::before {
+  border: 3px solid #e879f9;
+  box-shadow: 0 0 0 2px #60a5fa, 0 0 0 4px #34d399;
+}
+.profile-card-avatar-shell.nitro-frame-fire::before {
+  border-color: #fb713d;
+  box-shadow: 0 0 10px #ef4444aa, inset 0 0 7px #fb923c66;
+}
+.profile-card-avatar-shell.nitro-frame-ice::before {
+  border-color: #7dd3fc;
+  box-shadow: 0 0 10px #38bdf8aa, inset 0 0 7px #bae6fd77;
+}
+.profile-card-avatar-shell.nitro-frame-sakura::before {
+  border-color: #f9a8d4;
+  box-shadow: 0 0 10px #ec4899aa, inset 0 0 6px #fbcfe877;
+}
+.profile-card-avatar-shell.nitro-frame-matrix::before {
+  border-color: #4ade80;
+  box-shadow: 0 0 9px #22c55eaa, inset 0 0 6px #4ade8066;
+}
