@@ -20,3 +20,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+
+publish:
+  provider: github
+  owner: anemobe1122-alt
+  repo: nox-messenger
