@@ -1555,7 +1555,18 @@ export default function App() {
           {profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() && <section className="nitro-customize">
             <h3>💎 NOX NITRO — оформление</h3>
             <label>Ссылка на баннер<input type="url" value={nitroBannerDraft} onChange={(e) => setNitroBannerDraft(e.target.value)} placeholder="https://... (GIF или изображение)" /></label>
-            <label>Рамка аватара<select value={nitroFrameDraft} onChange={(e) => setNitroFrameDraft(e.target.value)}><option value="none">Без рамки</option><option value="violet">Фиолетовое свечение</option><option value="gold">Золотая</option><option value="rainbow">Радужная</option></select></label>
+            <div className="nitro-frame-picker"><strong>Рамка аватара</strong><div className="nitro-frame-grid">
+              {[
+                {id:"none",name:"Без рамки",icon:"○"},
+                {id:"violet",name:"Астра",icon:"✦"},
+                {id:"gold",name:"Корона",icon:"♛"},
+                {id:"rainbow",name:"Призма",icon:"✧"},
+                {id:"fire",name:"Пламя",icon:"♨"},
+                {id:"ice",name:"Лёд",icon:"❄"},
+                {id:"sakura",name:"Сакура",icon:"❀"},
+                {id:"matrix",name:"Кибер",icon:"⌘"}
+              ].map((frame) => <button type="button" key={frame.id} className={`nitro-frame-choice nitro-preview-${frame.id} ${nitroFrameDraft===frame.id?"selected":""}`} onClick={() => setNitroFrameDraft(frame.id)}><span className="nitro-frame-demo">{frame.icon}</span><span>{frame.name}</span>{nitroFrameDraft===frame.id && <i>✓</i>}</button>)}
+            </div></div>
             <label>Цвет профиля<input type="color" value={nitroAccentDraft} onChange={(e) => setNitroAccentDraft(e.target.value)} /></label>
             <small>GIF-аватарку можно загрузить через кнопку смены аватара.</small>
           </section>}
