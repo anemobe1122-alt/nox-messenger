@@ -1140,3 +1140,60 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   overflow:hidden !important;
   border-radius:50% !important;
 }
+
+
+/* Circular Nitro avatar frame in both own and other-user profile popovers */
+.profile-popover-avatar {
+  display:grid !important;
+  place-items:center !important;
+  flex:0 0 68px !important;
+}
+.profile-popover-avatar > .avatar-presence-wrap,
+.member-profile-card .profile-popover-main > .avatar-presence-wrap {
+  position:relative !important;
+  display:grid !important;
+  place-items:center !important;
+  width:66px !important;
+  height:66px !important;
+  min-width:66px !important;
+  min-height:66px !important;
+  max-width:66px !important;
+  max-height:66px !important;
+  flex:0 0 66px !important;
+  overflow:visible !important;
+  border-radius:50% !important;
+}
+.profile-popover-avatar .avatar-background-wrap,
+.member-profile-card .profile-popover-main .avatar-background-wrap {
+  display:grid !important;
+  place-items:center !important;
+  width:66px !important;
+  height:66px !important;
+  min-width:66px !important;
+  min-height:66px !important;
+  max-width:66px !important;
+  max-height:66px !important;
+  flex:0 0 66px !important;
+  overflow:visible !important;
+  border-radius:50% !important;
+}
+.profile-popover-avatar .avatar-background-wrap > .avatar,
+.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image,
+.member-profile-card .profile-popover-main .avatar-background-wrap > .avatar,
+.member-profile-card .profile-popover-main .avatar-background-wrap > .profile-avatar-image {
+  display:block !important;
+  width:66px !important;
+  height:66px !important;
+  min-width:66px !important;
+  min-height:66px !important;
+  max-width:66px !important;
+  max-height:66px !important;
+  flex:0 0 66px !important;
+  aspect-ratio:1 / 1 !important;
+  object-fit:cover !important;
+  border-radius:50% !important;
+}
+.member-profile-card .profile-popover-main > .avatar-presence-wrap {
+  margin-top:-48px !important;
+  margin-bottom:0 !important;
+}
