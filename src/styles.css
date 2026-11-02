@@ -1020,3 +1020,57 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   border-radius:50%; object-fit:cover;
 }
 .member-profile-card .presence-dot { right:0; bottom:0; z-index:5; }
+
+
+/* Final profile-card layout: frame belongs to the image, never to its wrapper */
+.profile-popover { overflow-x:hidden; }
+.profile-popover-main { position:relative; padding:48px 15px 15px !important; }
+.profile-popover-avatar {
+  position:absolute !important; top:-30px !important; left:15px !important;
+  display:grid !important; place-items:center !important;
+  width:68px !important; height:68px !important; min-width:68px !important;
+  margin:0 !important; padding:3px !important; overflow:visible !important;
+  border:4px solid #1e1f22 !important; border-radius:50% !important;
+  background:#1e1f22 !important;
+}
+.profile-popover-avatar > .avatar-presence-wrap {
+  position:relative !important; display:grid !important; place-items:center !important;
+  width:58px !important; height:58px !important; min-width:58px !important;
+  flex:0 0 58px !important; overflow:visible !important;
+}
+.profile-popover-avatar .avatar-background-wrap {
+  display:grid !important; place-items:center !important;
+  width:58px !important; height:58px !important; min-width:58px !important;
+  min-height:58px !important; flex:0 0 58px !important;
+  overflow:visible !important; border-radius:50% !important;
+}
+.profile-popover-avatar .avatar-background-wrap > .avatar,
+.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image {
+  display:block !important; width:58px !important; height:58px !important;
+  min-width:58px !important; min-height:58px !important;
+  max-width:58px !important; max-height:58px !important;
+  margin:0 !important; border-radius:50% !important; object-fit:cover !important;
+}
+.profile-popover-avatar > svg { position:absolute !important; right:0 !important; bottom:1px !important; z-index:5 !important; }
+.profile-popover-main > strong { margin-top:7px !important; }
+
+.member-profile-card .profile-popover-main { padding-top:48px !important; }
+.member-profile-card .profile-popover-main > .avatar-presence-wrap {
+  position:absolute !important; top:-48px !important; left:15px !important;
+  display:grid !important; place-items:center !important;
+  width:76px !important; height:76px !important; min-width:76px !important;
+  flex:0 0 76px !important; overflow:visible !important;
+}
+.member-profile-card .profile-popover-main > .avatar-presence-wrap .avatar-background-wrap {
+  display:grid !important; place-items:center !important;
+  width:66px !important; height:66px !important; min-width:66px !important;
+  min-height:66px !important; flex:0 0 66px !important;
+  overflow:visible !important; border:5px solid #23242c !important; border-radius:50% !important;
+}
+.member-profile-card .avatar-background-wrap > .profile-card-avatar,
+.member-profile-card .avatar-background-wrap > .profile-avatar-image {
+  display:block !important; width:56px !important; height:56px !important;
+  min-width:56px !important; min-height:56px !important;
+  max-width:56px !important; max-height:56px !important;
+  margin:0 !important; border:0 !important; border-radius:50% !important; object-fit:cover !important;
+}
