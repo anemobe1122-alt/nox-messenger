@@ -1447,3 +1447,53 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   overflow: hidden;
   border-radius: 50%;
 }
+
+
+/* The DM welcome avatar is a fixed-size icon, never a full-width image. */
+.dm-chat > .avatar-presence-wrap,
+.dm-chat > .avatar-background-wrap {
+  display: inline-flex !important;
+  position: relative !important;
+  width: 88px !important;
+  height: 88px !important;
+  min-width: 88px !important;
+  min-height: 88px !important;
+  max-width: 88px !important;
+  max-height: 88px !important;
+  flex: 0 0 88px !important;
+  align-self: center !important;
+  overflow: visible !important;
+}
+.dm-chat > .avatar-presence-wrap > .avatar-background-wrap,
+.dm-chat > .avatar-background-wrap {
+  display: grid !important;
+  width: 88px !important;
+  height: 88px !important;
+  min-width: 88px !important;
+  min-height: 88px !important;
+  max-width: 88px !important;
+  max-height: 88px !important;
+  flex: 0 0 88px !important;
+  overflow: hidden !important;
+  border-radius: 50% !important;
+}
+.dm-chat > .avatar-presence-wrap .dm-conversation-avatar,
+.dm-chat > .avatar-background-wrap .dm-conversation-avatar,
+.dm-chat > .avatar-presence-wrap .profile-avatar-image,
+.dm-chat > .avatar-background-wrap .profile-avatar-image {
+  display: block !important;
+  width: 88px !important;
+  height: 88px !important;
+  min-width: 88px !important;
+  min-height: 88px !important;
+  max-width: 88px !important;
+  max-height: 88px !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+.dm-chat > h1,
+.dm-chat > p {
+  flex: 0 0 auto;
+  width: 100%;
+  text-align: center;
+}
