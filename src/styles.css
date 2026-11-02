@@ -406,7 +406,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .message-row:hover .message-delete-button, .message-delete-button:focus-visible { opacity: 1; }
 .message-body p { color: #d0d0db; font-size: 12px; line-height: 1.65; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
-.composer-wrap { padding: 10px 19px 12px; flex: 0 0 auto; }
+.composer-wrap { padding: 10px 19px 12px; flex: 0 0 auto; position: relative; }
 
 .composer {
   display: flex;
@@ -785,7 +785,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 
 /* Discord-style GIF picker */
-.gif-picker { width: min(440px, 100%); margin: 0 0 10px auto; padding: 12px; border: 1px solid #3b3c49; border-radius: 12px; background: #20212a; box-shadow: 0 12px 35px #0007; }
+.gif-picker { position: absolute; z-index: 40; right: 19px; bottom: calc(100% + 4px); width: min(440px, calc(100vw - 32px)); margin: 0; padding: 12px; border: 1px solid #3b3c49; border-radius: 12px; background: #20212a; box-shadow: 0 12px 35px #0007; }
 .gif-picker-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; color:#f0eff7; font-size:13px; }
 .gif-picker-top button { display:grid; place-items:center; border:0; border-radius:6px; padding:5px; color:#a6a7b7; background:transparent; }
 .gif-picker-top button:hover { color:#fff; background:#343541; }
@@ -801,4 +801,4 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .gif-trigger.active { color:#c9c0ff; }
 .message-gif-link { display:inline-block; max-width:min(360px,100%); margin-top:5px; }
 .message-gif { display:block; max-width:100%; max-height:280px; border-radius:9px; object-fit:contain; }
-@media (max-width:760px) { .gif-picker { width:100%; } .gif-results { grid-template-columns:repeat(2,minmax(0,1fr)); } .gif-result { height:105px; } }
+@media (max-width:760px) { .gif-picker { right: 0; width: min(440px, calc(100vw - 24px)); } .gif-results { grid-template-columns:repeat(2,minmax(0,1fr)); } .gif-result { height:105px; } }
