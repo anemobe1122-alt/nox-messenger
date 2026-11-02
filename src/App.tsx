@@ -52,6 +52,8 @@ export default function App() {
   const [memberCardIsOwn, setMemberCardIsOwn] = useState(false);
   const [messageReactions, setMessageReactions] = useState<Record<string, string[]>>({});
   const [messageMenuOpen, setMessageMenuOpen] = useState<string | null>(null);
+  const dmScrollRef = useRef<HTMLDivElement>(null);
+  const channelScrollRef = useRef<HTMLDivElement>(null);
   const [replyTarget, setReplyTarget] = useState<{ id: string; userId: string; author: string; content: string; direct: boolean } | null>(null);
   const [profilePopoverAnchor, setProfilePopoverAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
@@ -137,6 +139,15 @@ export default function App() {
   }, []);
 
   useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
+
+  useEffect(() => {
+    const container = activeDm ? dmScrollRef.current : channelScrollRef.current;
+    if (!container) return;
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeDm, activeDmKey, activeChannelId, dmMessages, visibleMessages.length]);
 
   useEffect(() => {
     if (!gifPickerFor) return;
@@ -1234,7 +1245,7 @@ export default function App() {
       {activeView === "home" ? <main className="chat-area home-area">
         <header className="chat-header home-header">{(activeDm || activeHomeTab !== "Сообщения") && <button className="mobile-sidebar-button" title="Назад к беседам" onClick={() => { setActiveDm(""); setActiveHomeTab("Сообщения"); setSidebarOpen(true); }}><ArrowLeft size={19}/></button>}<strong>{activeDmContact ? (activeDmContact.display_name || activeDmContact.username) : activeHomeTab}</strong><div className="header-divider"/><span className="header-topic">Nox — место для твоих разговоров</span><div className="header-actions"><button title="Поиск" onClick={() => setSearchOpen(true)}><Search size={19}/></button><button title="Новая беседа" onClick={() => setSearchOpen(true)}><CirclePlus size={19}/></button></div></header>
         {activeDm ? <>
-          <div className="dm-conversation dm-chat">
+          <div className="dm-conversation dm-chat" ref={dmScrollRef}>
             <ProfileAvatar profile={activeDmContact} name={activeDmContact?.display_name || activeDmContact?.username || "N"} className="dm-conversation-avatar" />
             <h1>{activeDmContact?.display_name || activeDmContact?.username || "Личные сообщения"}</h1>
             <p>Начало вашей переписки.</p>
@@ -1332,7 +1343,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="messages-scroll">
+        <div className="messages-scroll" ref={channelScrollRef}>
           <div className="welcome-block">
             <div className="welcome-orb"><MessageCircle size={27}/></div>
             <h1>Добро пожаловать в #{activeChannel?.name || "Nox"}</h1>
