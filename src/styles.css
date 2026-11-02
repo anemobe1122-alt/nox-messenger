@@ -848,3 +848,30 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .nitro-frame-violet { outline:3px solid #a78bfa; outline-offset:2px; box-shadow:0 0 14px #8b5cfaaa; }
 .nitro-frame-gold { outline:3px solid #f5c451; outline-offset:2px; box-shadow:0 0 14px #f5c45199; }
 .nitro-frame-rainbow { outline:3px solid transparent; outline-offset:2px; box-shadow:0 0 0 3px #e879f9,0 0 0 5px #60a5fa,0 0 0 7px #34d399; }
+
+
+/* Premium avatar frames inspired by collectible game/profile cosmetics */
+.nitro-frame-picker { margin-top:12px; }
+.nitro-frame-picker > strong { display:block; margin-bottom:9px; color:#eee7ff; font-size:12px; }
+.nitro-frame-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.nitro-frame-choice { position:relative; display:flex; min-width:0; flex-direction:column; align-items:center; gap:7px; padding:9px 4px 8px; border:1px solid #ffffff18; border-radius:10px; color:#c9c5d5; background:#171821; font-size:10px; transition:transform .16s,border-color .16s,background .16s; }
+.nitro-frame-choice:hover { transform:translateY(-2px); border-color:#a78bfa88; background:#28243a; }
+.nitro-frame-choice.selected { border-color:#a78bfa; color:#fff; background:linear-gradient(145deg,#49356f,#252337); box-shadow:0 0 0 1px #a78bfa55,0 5px 18px #8b5cf522; }
+.nitro-frame-choice > i { position:absolute; top:4px; right:5px; color:#c4b5fd; font-style:normal; font-weight:900; }
+.nitro-frame-demo { display:grid; width:42px; height:42px; place-items:center; border:3px solid #6b5a99; border-radius:50%; color:#f4edff; background:radial-gradient(circle at 35% 25%,#55427e,#171821 72%); font-size:21px; box-shadow:0 0 10px #9b7bff88,inset 0 0 8px #bda8ff55; }
+.nitro-preview-none .nitro-frame-demo { border-color:#555866; box-shadow:none; }
+.nitro-preview-violet .nitro-frame-demo { border:3px double #c4a5ff; box-shadow:0 0 5px #a78bfa,0 0 16px #8b5cfaaa; }
+.nitro-preview-gold .nitro-frame-demo { border:4px ridge #f5d27a; color:#ffe7a8; box-shadow:0 0 12px #fbbf2488; }
+.nitro-preview-rainbow .nitro-frame-demo { border:3px solid transparent; background:linear-gradient(#171821,#171821) padding-box,conic-gradient(#f472b6,#facc15,#4ade80,#38bdf8,#a78bfa,#f472b6) border-box; }
+.nitro-preview-fire .nitro-frame-demo { border:3px solid #fb923c; color:#fed7aa; box-shadow:0 0 7px #f97316,0 0 17px #ef444488; }
+.nitro-preview-ice .nitro-frame-demo { border:3px solid #7dd3fc; color:#e0f2fe; box-shadow:0 0 7px #38bdf8,0 0 17px #67e8f988; }
+.nitro-preview-sakura .nitro-frame-demo { border:3px dotted #f9a8d4; color:#fce7f3; box-shadow:0 0 12px #ec489988; }
+.nitro-preview-matrix .nitro-frame-demo { border:3px dashed #4ade80; color:#bbf7d0; box-shadow:0 0 10px #22c55e99; }
+.nitro-frame-violet { outline:3px double #c4a5ff; outline-offset:3px; box-shadow:0 0 7px #a78bfa,0 0 17px #8b5cfaaa; }
+.nitro-frame-gold { outline:4px ridge #f5d27a; outline-offset:3px; box-shadow:0 0 14px #f5c451aa; }
+.nitro-frame-rainbow { outline:3px solid transparent; outline-offset:3px; box-shadow:0 0 0 3px #e879f9,0 0 0 5px #facc15,0 0 0 7px #34d399,0 0 0 9px #60a5fa; }
+.nitro-frame-fire { outline:3px solid #fb923c; outline-offset:3px; box-shadow:0 0 8px #f97316,0 0 18px #ef4444aa; }
+.nitro-frame-ice { outline:3px solid #7dd3fc; outline-offset:3px; box-shadow:0 0 8px #38bdf8,0 0 18px #67e8f9aa; }
+.nitro-frame-sakura { outline:3px dotted #f9a8d4; outline-offset:3px; box-shadow:0 0 14px #ec4899aa; }
+.nitro-frame-matrix { outline:3px dashed #4ade80; outline-offset:3px; box-shadow:0 0 12px #22c55eaa; }
+@media (max-width:420px) { .nitro-frame-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
