@@ -1650,3 +1650,35 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   margin-bottom: 10px;
 }
 .profile-popover-main .profile-card-avatar-shell.nitro-frame-none { }
+
+
+/* The clickable avatar button is only a hit target; the shell draws the single ring. */
+.profile-popover-avatar {
+  display: grid !important;
+  place-items: center !important;
+  box-sizing: border-box !important;
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  min-height: 92px !important;
+  max-width: 92px !important;
+  max-height: 92px !important;
+  flex: 0 0 92px !important;
+  margin: -49px 0 10px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+}
+.profile-popover-avatar > .profile-card-avatar-shell {
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  min-height: 92px !important;
+  max-width: 92px !important;
+  max-height: 92px !important;
+  flex: 0 0 92px !important;
+  margin: 0 !important;
+}
