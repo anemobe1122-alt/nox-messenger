@@ -59,7 +59,6 @@ export default function App() {
   const [memberCardProfile, setMemberCardProfile] = useState<Profile | null>(null);
   const [memberCardAnchor, setMemberCardAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [memberCardIsOwn, setMemberCardIsOwn] = useState(false);
-  const [messageReactions, setMessageReactions] = useState<Record<string, string[]>>({});
   const [messageMenuOpen, setMessageMenuOpen] = useState<string | null>(null);
   const dmScrollRef = useRef<HTMLDivElement>(null);
   const channelScrollRef = useRef<HTMLDivElement>(null);
@@ -1312,8 +1311,6 @@ export default function App() {
                 <div className="message-body">
                   <div className="message-meta"><button type="button" className="message-name-trigger" onClick={(e) => void openMemberCard(e, isOwn ? profile : m.profile, isOwn)}>{sender}</button><time>{timeLabel(m.created_at)}</time>
                     <div className="message-actions" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" title="❤️" onClick={() => setMessageReactions(old => ({...old,[m.id]: old[m.id]?.includes("❤️") ? old[m.id].filter(x=>x!=="❤️") : [...(old[m.id]||[]),"❤️"]}))}>❤️</button>
-                      <button type="button" title="💀" onClick={() => setMessageReactions(old => ({...old,[m.id]: old[m.id]?.includes("💀") ? old[m.id].filter(x=>x!=="💀") : [...(old[m.id]||[]),"💀"]}))}>💀</button>
                       <button type="button" title="Ответить" onClick={() => {setReplyTarget({id:m.id,userId:m.user_id,author:sender,content:m.content,direct:true});setDmDraft("");}}><Reply size={15}/></button>
                       <button type="button" title="Копировать" onClick={() => void navigator.clipboard?.writeText(m.content.startsWith("GIF:") ? m.content.slice(4) : m.content)}><Forward size={15}/></button>
                       <button type="button" title="Ещё" onClick={() => setMessageMenuOpen(messageMenuOpen===m.id?null:m.id)}><MoreHorizontal size={16}/></button>
@@ -1321,7 +1318,6 @@ export default function App() {
                     </div>
                   </div>
                   {m.metadata?.reply_to && <div className="message-reply-quote"><b>{m.metadata.reply_author || "Ответ"}</b><span>{m.metadata.reply_content || "Сообщение"}</span></div>}
-                  {!!messageReactions[m.id]?.length && <div className="message-reaction-chips">{messageReactions[m.id].map(emoji=><span key={emoji}>{emoji}</span>)}</div>}
                   {m.message_type === "server_invite" && m.metadata?.server_id ? <div className="dm-server-invite-card">
                     <div className="dm-server-invite-cover"><span>{initials(m.metadata.server_name || "N")}</span></div>
                     <div className="dm-server-invite-content">
@@ -1413,8 +1409,6 @@ export default function App() {
                 <div className="message-body">
                   <div className="message-meta"><button type="button" className="message-name-trigger" onClick={(e) => void openMemberCard(e, isOwn ? profile : message.profile, isOwn)}>{name}</button><time>{timeLabel(message.created_at)}</time>
                     <div className="message-actions" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" title="❤️" onClick={() => setMessageReactions(old => ({...old,[message.id]: old[message.id]?.includes("❤️") ? old[message.id].filter(x=>x!=="❤️") : [...(old[message.id]||[]),"❤️"]}))}>❤️</button>
-                      <button type="button" title="💀" onClick={() => setMessageReactions(old => ({...old,[message.id]: old[message.id]?.includes("💀") ? old[message.id].filter(x=>x!=="💀") : [...(old[message.id]||[]),"💀"]}))}>💀</button>
                       <button type="button" title="Ответить" onClick={() => {setReplyTarget({id:message.id,userId:message.user_id,author:name,content:message.content,direct:false});setDraft("");}}><Reply size={15}/></button>
                       <button type="button" title="Копировать" onClick={() => void navigator.clipboard?.writeText(message.content.startsWith("GIF:") ? message.content.slice(4) : message.content)}><Forward size={15}/></button>
                       <button type="button" title="Ещё" onClick={() => setMessageMenuOpen(messageMenuOpen===message.id?null:message.id)}><MoreHorizontal size={16}/></button>
@@ -1422,7 +1416,6 @@ export default function App() {
                     </div>
                   </div>
                   {message.metadata?.reply_to && <div className="message-reply-quote"><b>{message.metadata.reply_author || "Ответ"}</b><span>{message.metadata.reply_content || "Сообщение"}</span></div>}
-                  {!!messageReactions[message.id]?.length && <div className="message-reaction-chips">{messageReactions[message.id].map(emoji=><span key={emoji}>{emoji}</span>)}</div>}
                   <MessageContent content={message.content} />
                 </div>
               </article>
