@@ -535,3 +535,10 @@ $$;
 revoke all on function public.admin_revoke_nitro(text) from public;
 grant execute on function public.admin_revoke_nitro(text) to authenticated;
 notify pgrst, 'reload schema';
+
+
+-- Nitro profile customization
+alter table public.profiles
+  add column if not exists nitro_banner_url text,
+  add column if not exists nitro_frame text not null default 'none',
+  add column if not exists nitro_accent_color text not null default '#8b75ff';
