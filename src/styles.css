@@ -1594,3 +1594,43 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   object-fit: cover !important;
   border-radius: 50% !important;
 }
+
+
+/* Center the profile-card avatar within its banner, accounting for wrapper. */
+.member-profile-card .profile-popover-main {
+  position: relative;
+}
+.member-profile-card .profile-popover-main > .avatar-presence-wrap,
+.member-profile-card .profile-popover-main > .profile-card-avatar {
+  position: absolute !important;
+  top: -38px !important;
+  left: 38px !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  margin: 0 !important;
+  z-index: 2;
+}
+.member-profile-card .profile-popover-main > .avatar-presence-wrap {
+  width: 76px !important;
+  height: 76px !important;
+  min-width: 76px !important;
+  min-height: 76px !important;
+  max-width: 76px !important;
+  max-height: 76px !important;
+  flex: none !important;
+}
+.member-profile-card .profile-popover-main > .avatar-presence-wrap > .profile-card-avatar,
+.member-profile-card .profile-popover-main > .profile-card-avatar {
+  width: 66px !important;
+  height: 66px !important;
+  min-width: 66px !important;
+  min-height: 66px !important;
+  max-width: 66px !important;
+  max-height: 66px !important;
+  margin: 0 !important;
+  flex: none !important;
+}
+.member-profile-card .profile-popover-main {
+  padding-top: 0;
+}
