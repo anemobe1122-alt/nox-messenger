@@ -47,6 +47,9 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profilePopoverOpen, setProfilePopoverOpen] = useState(false);
+  const [memberCardProfile, setMemberCardProfile] = useState<Profile | null>(null);
+  const [memberCardAnchor, setMemberCardAnchor] = useState<{ left: number; bottom: number } | null>(null);
+  const [memberCardIsOwn, setMemberCardIsOwn] = useState(false);
   const [profilePopoverAnchor, setProfilePopoverAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   const [profileUsernameDraft, setProfileUsernameDraft] = useState("");
@@ -277,6 +280,23 @@ export default function App() {
     });
     setProfilePopoverOpen((open) => !open);
   }
+
+  async function openMemberCard(event: ReactMouseEvent<HTMLElement>, target: Profile | null | undefined, own = false) {
+    event.stopPropagation();
+    const person = own ? profile : target;
+    if (!person) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = Math.min(320, window.innerWidth - 20);
+    setMemberCardAnchor({ left: Math.max(10, Math.min(rect.left, window.innerWidth - width - 10)), bottom: Math.max(12, window.innerHeight - rect.top + 8) });
+    setMemberCardIsOwn(own || (!!user && person.id === user.id));
+    setMemberCardProfile(person);
+    if (supabase && person.id && (!person.bio && !person.presence_status)) {
+      const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio").eq("id", person.id).maybeSingle();
+      if (data) setMemberCardProfile(data as Profile);
+    }
+  }
+
+  function closeMemberCard() { setMemberCardProfile(null); setMemberCardAnchor(null); }
 
   function openProfileSettings() {
     if (!user || !supabase) {
@@ -1213,9 +1233,9 @@ export default function App() {
               const isOwn = m.user_id === user?.id || m.user_id === "you";
               const sender = isOwn ? currentName : (m.profile?.display_name || m.profile?.username || activeDmContact?.display_name || "Пользователь");
               return <article className="message-row" key={m.id}>
-                <ProfileAvatar profile={isOwn ? profile : m.profile} name={sender} className={`avatar message-avatar ${isOwn ? "own" : ""}`} />
+                <button type="button" className="message-profile-trigger" aria-label={`Открыть профиль ${sender}`} onClick={(e) => void openMemberCard(e, isOwn ? profile : m.profile, isOwn)}><ProfileAvatar profile={isOwn ? profile : m.profile} name={sender} className={`avatar message-avatar ${isOwn ? "own" : ""}`} /></button>
                 <div className="message-body">
-                  <div className="message-meta"><strong>{sender}</strong><time>{timeLabel(m.created_at)}</time>
+                  <div className="message-meta"><button type="button" className="message-name-trigger" onClick={(e) => void openMemberCard(e, isOwn ? profile : m.profile, isOwn)}>{sender}</button><time>{timeLabel(m.created_at)}</time>
                     {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(m, true)}><Trash2 size={15}/></button>}
                   </div>
                   {m.message_type === "server_invite" && m.metadata?.server_id ? <div className="dm-server-invite-card">
@@ -1304,9 +1324,9 @@ export default function App() {
             const isOwn = message.user_id === user?.id || message.user_id === "you";
             return (
               <article className="message-row" key={message.id}>
-                <ProfileAvatar profile={isOwn ? profile : message.profile} name={name} className={`avatar message-avatar ${isOwn ? "own" : ""}`} />
+                <button type="button" className="message-profile-trigger" aria-label={`Открыть профиль ${name}`} onClick={(e) => void openMemberCard(e, isOwn ? profile : message.profile, isOwn)}><ProfileAvatar profile={isOwn ? profile : message.profile} name={name} className={`avatar message-avatar ${isOwn ? "own" : ""}`} /></button>
                 <div className="message-body">
-                  <div className="message-meta"><strong>{name}</strong><time>{timeLabel(message.created_at)}</time>
+                  <div className="message-meta"><button type="button" className="message-name-trigger" onClick={(e) => void openMemberCard(e, isOwn ? profile : message.profile, isOwn)}>{name}</button><time>{timeLabel(message.created_at)}</time>
                     {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(message, false)}><Trash2 size={15}/></button>}
                   </div>
                   <MessageContent content={message.content} />
@@ -1395,6 +1415,22 @@ export default function App() {
             <div className="profile-popover-status"><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</div>
             <div className="profile-popover-bio">{profile?.bio?.trim() || "Пока без описания."}</div>
             <button type="button" className="profile-edit-button" onClick={openProfileSettings}><Settings size={15}/> Редактировать профиль</button>
+          </div>
+        </section>
+      </>}
+
+      {memberCardProfile && memberCardAnchor && <>
+        <button type="button" className="profile-popover-dismiss" aria-label="Закрыть профиль" onClick={closeMemberCard} />
+        <section className="profile-popover member-profile-card" style={{ left: memberCardAnchor.left, bottom: memberCardAnchor.bottom }}>
+          <button type="button" className="profile-popover-close" aria-label="Закрыть" onClick={closeMemberCard}><X size={17}/></button>
+          <div className="profile-popover-banner" />
+          <div className="profile-popover-main">
+            <ProfileAvatar profile={memberCardProfile} name={memberCardProfile.display_name || memberCardProfile.username} className="avatar profile-card-avatar" />
+            <strong>{memberCardProfile.display_name || memberCardProfile.username}</strong>
+            <span className="profile-popover-username">@{memberCardProfile.username}</span>
+            <div className="profile-popover-status"><i className={`presence-dot status-${memberCardProfile.presence_status || "invisible"}`}/>{memberCardProfile.presence_status ? presenceLabel(memberCardProfile.presence_status) : "Статус не указан"}</div>
+            <div className="profile-popover-bio">{memberCardProfile.bio?.trim() || "Пока без описания."}</div>
+            {memberCardIsOwn ? <button type="button" className="profile-edit-button" onClick={() => { closeMemberCard(); openProfileSettings(); }}><Settings size={15}/> Редактировать профиль</button> : <button type="button" className="profile-edit-button" onClick={() => { const person = memberCardProfile; closeMemberCard(); void openDirectChat(person); }}><MessageSquare size={15}/> Написать сообщение</button>}
           </div>
         </section>
       </>}
