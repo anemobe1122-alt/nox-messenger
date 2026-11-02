@@ -17,6 +17,11 @@ type Channel = { id: string; server_id: string; name: string; type?: string; slo
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile; message_type?: "text" | "server_invite"; metadata?: Record<string, any> | null };
 type GiphyGif = { id: string; title?: string; images?: { original?: { url?: string }; fixed_width?: { url?: string }; fixed_width_small?: { url?: string } } };
 function MessageContent({ content }: { content: string }) {
+  if (content.startsWith("MEDIA:")) {
+    const [, kind, url] = content.split(":", 3);
+    if (kind === "image" && /^https:\/\//i.test(url || "")) return <a className="message-media-link" href={url} target="_blank" rel="noreferrer"><img className="message-image" src={url} alt="Изображение" loading="lazy"/></a>;
+    if (kind === "video" && /^https:\/\//i.test(url || "")) return <video className="message-video" src={url} controls playsInline preload="metadata"/>;
+  }
   if (content.startsWith("GIF:")) { const url = content.slice(4).trim(); if (/^https:\/\//i.test(url)) return <a className="message-gif-link" href={url} target="_blank" rel="noreferrer"><img className="message-gif" src={url} alt="GIF" loading="lazy" /></a>; }
   return <p>{content}</p>;
 }
@@ -131,6 +136,7 @@ export default function App() {
   const [peopleResults, setPeopleResults] = useState<Profile[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [dmDraft, setDmDraft] = useState("");
+  const [mediaUploading, setMediaUploading] = useState(false);
   const [gifPickerFor, setGifPickerFor] = useState<"dm" | "channel" | null>(null);
   const [gifQuery, setGifQuery] = useState("");
   const [gifResults, setGifResults] = useState<GiphyGif[]>([]);
@@ -1168,6 +1174,36 @@ export default function App() {
     setGifPickerFor(null); setGifQuery(""); setGifResults([]);
   }
 
+  async function uploadChatMedia(file: File, direct: boolean) {
+    if (!file) return;
+    if (!supabase || !user) { showNotice("Войди в аккаунт, чтобы отправлять фото и видео."); return; }
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) { showNotice("Можно отправлять только фото и видео."); return; }
+    if (file.size > 50 * 1024 * 1024) { showNotice("Максимальный размер файла — 50 МБ."); return; }
+    if (direct && (!activeDmContact?.conversationId || !activeDm)) { showNotice("Сначала открой личный чат."); return; }
+    if (!direct && !activeChannel) { showNotice("Сначала открой текстовый канал."); return; }
+    setMediaUploading(true);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage.from("chat-media").upload(path, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
+      const kind = file.type.startsWith("video/") ? "video" : "image";
+      const content = `MEDIA:${kind}:${data.publicUrl}`;
+      if (direct) {
+        const { error } = await supabase.from("direct_messages").insert({ conversation_id: activeDmContact!.conversationId!, user_id: user.id, content });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("messages").insert({ channel_id: activeChannel!.id, user_id: user.id, content });
+        if (error) throw error;
+      }
+      showNotice(kind === "video" ? "Видео отправлено!" : "Фото отправлено!");
+    } catch (error: any) {
+      console.error("Chat media upload failed:", error);
+      showNotice("Не удалось отправить файл: " + (error?.message || "ошибка загрузки"));
+    } finally { setMediaUploading(false); }
+  }
+
   async function sendDm(e: FormEvent) {
     e.preventDefault();
     const content = dmDraft.trim();
@@ -1525,7 +1561,7 @@ export default function App() {
           <div className={`composer-wrap ${activeChannel?.type === "voice" ? "voice-hidden" : ""}`}>
             {gifPickerFor === "dm" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…" autoFocus/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.images?.original?.url || gif.images?.fixed_width?.url || gif.images?.fixed_width_small?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, true)}><img src={gif.images?.fixed_width_small?.url || gif.images?.fixed_width?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">Powered by GIPHY</small></div>}
             {replyTarget?.direct && <div className="reply-composer-banner"><span>Ответ для <b>{replyTarget.author}</b>: {replyTarget.content.startsWith("GIF:") ? "[GIF]" : replyTarget.content}</span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
-            <form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "dm" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "dm" ? null : "dm"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form>
+            <form className="composer" onSubmit={sendDm}><label className="composer-plus" title="Прикрепить фото или видео"><Plus size={22}/><input type="file" accept="image/*,video/*" hidden disabled={mediaUploading} onChange={(e) => { const file=e.target.files?.[0]; if(file) void uploadChatMedia(file,true); e.currentTarget.value=""; }}/></label><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "dm" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "dm" ? null : "dm"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form>
           </div>
         </> : <div className="home-content">
           <div className="home-welcome"><div className="home-welcome-icon"><MessageCircle size={25}/></div><span>ТВОЙ УГОЛОК В NOX</span><h1>{activeHomeTab === "Сообщения" ? "Рады тебя видеть" : activeHomeTab}</h1><p>{activeHomeTab === "Друзья" ? "Находи друзей и начинай новые беседы." : activeHomeTab === "Сообщения" || activeHomeTab === "Найти беседу" || activeHomeTab === "Новая беседа" ? "Начни личную беседу или продолжи общение." : activeHomeTab === "Nitro" ? "Больше возможностей и оформление профиля с Nox Nitro." : activeHomeTab === "Магазин" ? "Магазин оформления появится позже." : "Общайся, открывай сообщества и оставайся на связи."}</p>{homeActionLabel && <button onClick={() => setSearchOpen(true)}><UserRound size={17}/> {homeActionLabel}</button>}</div>
@@ -1642,7 +1678,7 @@ export default function App() {
           {gifPickerFor === "channel" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…"/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.images?.original?.url || gif.images?.fixed_width?.url || gif.images?.fixed_width_small?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, false)}><img src={gif.images?.fixed_width_small?.url || gif.images?.fixed_width?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">Powered by GIPHY</small></div>}
           {replyTarget && !replyTarget.direct && <div className="reply-composer-banner"><span>Ответ для <b>{replyTarget.author}</b>: {replyTarget.content.startsWith("GIF:") ? "[GIF]" : replyTarget.content}</span><button type="button" onClick={() => setReplyTarget(null)} aria-label="Отменить ответ"><X size={15}/></button></div>}
           <form className="composer" onSubmit={sendMessage}>
-            <label className="composer-plus" title="Прикрепить файл"><Plus size={22}/><input type="file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setDraft((d) => `${d}${d ? " " : ""}[Файл: ${file.name}]`); e.currentTarget.value = ""; }}/></label>
+            <label className="composer-plus" title="Прикрепить фото или видео"><Plus size={22}/><input type="file" accept="image/*,video/*" hidden disabled={mediaUploading} onChange={(e) => { const file=e.target.files?.[0]; if(file) void uploadChatMedia(file,false); e.currentTarget.value=""; }}/></label>
             <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={slowmodeRemaining > 0} placeholder={slowmodeRemaining > 0 ? `Можно написать через ${slowmodeRemaining} сек.` : `Написать в #${activeChannel?.name || "канал"}`} aria-label="Сообщение" />
             <button type="button" className="composer-tool" title="Эмодзи" onClick={() => setDraft((d) => d + " ✨")}>☺</button>
             <button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "channel" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "channel" ? null : "channel"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button>
