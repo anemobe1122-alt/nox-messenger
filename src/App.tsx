@@ -675,7 +675,14 @@ export default function App() {
     const sendSignal = (payload: any) => room.send({ type: "broadcast", event: "signal", payload: { ...payload, from: user.id } });
     const makePeer = (peerId: string) => {
       if (voiceConnectionsRef.current[peerId]) return voiceConnectionsRef.current[peerId];
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] });
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"], username: "openrelayproject", credential: "openrelayproject" }
+        ],
+        iceCandidatePoolSize: 10
+      });
       voiceConnectionsRef.current[peerId] = pc;
       voiceStreamRef.current?.getTracks().forEach(track => pc.addTrack(track, voiceStreamRef.current!));
       pc.onicecandidate = event => { if (event.candidate) void sendSignal({ to: peerId, candidate: event.candidate }); };
@@ -684,9 +691,13 @@ export default function App() {
         if (!audio) { audio = new Audio(); audio.autoplay = true; audio.volume = 1; voiceAudioRef.current[peerId] = audio; }
         audio.srcObject = event.streams[0];
         startVoiceMeter(event.streams[0], peerId);
-        void audio.play().catch(() => undefined);
+        void audio.play().catch(error => {
+          console.warn("Remote audio playback was blocked", error);
+          showNotice("Браузер заблокировал звук. Нажми «Подключиться» ещё раз или разреши автовоспроизведение для сайта.");
+        });
       };
       pc.onconnectionstatechange = () => {
+        console.info("Nox voice connection", peerId, pc.connectionState, pc.iceConnectionState);
         if (pc.connectionState === "failed" || pc.connectionState === "closed" || pc.connectionState === "disconnected") {
           if (pc.connectionState !== "disconnected") { pc.close(); delete voiceConnectionsRef.current[peerId]; const audio=voiceAudioRef.current[peerId]; if(audio){audio.pause();audio.srcObject=null;delete voiceAudioRef.current[peerId];} }
         }
