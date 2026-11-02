@@ -15,7 +15,7 @@ type FriendRelation = Profile & { requestId: string; requesterId: string; addres
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
 type Channel = { id: string; server_id: string; name: string; type?: string; slowmode_seconds?: number };
 type Message = { id: string; channel_id: string; user_id: string; content: string; created_at: string; profile?: Profile; message_type?: "text" | "server_invite"; metadata?: Record<string, any> | null };
-type TenorGif = { id: string; title?: string; media_formats?: { gif?: { url?: string }; tinygif?: { url?: string }; mediumgif?: { url?: string } } };
+type GiphyGif = { id: string; title?: string; images?: { original?: { url?: string }; fixed_width?: { url?: string }; fixed_width_small?: { url?: string } } };
 function MessageContent({ content }: { content: string }) {
   if (content.startsWith("GIF:")) { const url = content.slice(4).trim(); if (/^https:\/\//i.test(url)) return <a className="message-gif-link" href={url} target="_blank" rel="noreferrer"><img className="message-gif" src={url} alt="GIF" loading="lazy" /></a>; }
   return <p>{content}</p>;
@@ -102,7 +102,7 @@ export default function App() {
   const [dmDraft, setDmDraft] = useState("");
   const [gifPickerFor, setGifPickerFor] = useState<"dm" | "channel" | null>(null);
   const [gifQuery, setGifQuery] = useState("");
-  const [gifResults, setGifResults] = useState<TenorGif[]>([]);
+  const [gifResults, setGifResults] = useState<GiphyGif[]>([]);
   const [gifLoading, setGifLoading] = useState(false);
   const [gifError, setGifError] = useState("");
   const [dmMessages, setDmMessages] = useState<Record<string, Message[]>>(() => {
@@ -134,16 +134,19 @@ export default function App() {
 
   useEffect(() => {
     if (!gifPickerFor) return;
-    const apiKey = import.meta.env.VITE_TENOR_API_KEY;
-    if (!apiKey) { setGifResults([]); setGifError("Для поиска GIF добавь VITE_TENOR_API_KEY в GitHub Actions Variables."); return; }
+    const apiKey = import.meta.env.VITE_GIPHY_API_KEY;
+    if (!apiKey) { setGifResults([]); setGifError("Для поиска GIF добавь VITE_GIPHY_API_KEY в GitHub Actions Variables."); return; }
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setGifLoading(true); setGifError("");
       try {
-        const endpoint = gifQuery.trim() ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(gifQuery.trim())}&key=${apiKey}&client_key=nox_messenger&limit=24&media_filter=gif,tinygif` : `https://tenor.googleapis.com/v2/featured?key=${apiKey}&client_key=nox_messenger&limit=24&media_filter=gif,tinygif`;
+        const endpoint = gifQuery.trim()
+          ? `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${encodeURIComponent(gifQuery.trim())}&limit=24&rating=pg-13&lang=ru`
+          : `https://api.giphy.com/v1/gifs/trending?api_key=${apiKey}&limit=24&rating=pg-13`;
         const response = await fetch(endpoint, { signal: controller.signal });
-        if (!response.ok) throw new Error(`Tenor вернул ошибку ${response.status}`);
-        const payload = await response.json(); setGifResults(Array.isArray(payload.results) ? payload.results : []);
+        if (!response.ok) throw new Error(`GIPHY вернул ошибку ${response.status}`);
+        const payload = await response.json();
+        setGifResults(Array.isArray(payload.data) ? payload.data : []);
       } catch (error) { if (!controller.signal.aborted) setGifError(error instanceof Error ? error.message : "Не удалось загрузить GIF."); }
       finally { if (!controller.signal.aborted) setGifLoading(false); }
     }, gifQuery.trim() ? 350 : 0);
@@ -1231,7 +1234,7 @@ export default function App() {
             })}
           </div>
           <div className="composer-wrap">
-            {gifPickerFor === "dm" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…" autoFocus/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.media_formats?.gif?.url || gif.media_formats?.mediumgif?.url || gif.media_formats?.tinygif?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, true)}><img src={gif.media_formats?.tinygif?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">GIFs от Tenor</small></div>}
+            {gifPickerFor === "dm" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…" autoFocus/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.images?.original?.url || gif.images?.fixed_width?.url || gif.images?.fixed_width_small?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, true)}><img src={gif.images?.fixed_width_small?.url || gif.images?.fixed_width?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">Powered by GIPHY</small></div>}
             <form className="composer" onSubmit={sendDm}><input value={dmDraft} onChange={(e) => setDmDraft(e.target.value)} placeholder={`Написать @${activeDmContact?.username || "пользователю"}`} aria-label="Личное сообщение"/><button type="button" className={`composer-tool gif-trigger ${gifPickerFor === "dm" ? "active" : ""}`} title="GIF" onClick={() => { setGifPickerFor(gifPickerFor === "dm" ? null : "dm"); setGifQuery(""); }}><Images size={19}/><span>GIF</span></button><button className="send-button" type="submit" disabled={!dmDraft.trim()} title="Отправить"><Send size={18}/></button></form>
           </div>
         </> : <div className="home-content">
@@ -1314,7 +1317,7 @@ export default function App() {
         </div>
 
         <div className="composer-wrap">
-          {gifPickerFor === "channel" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…"/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.media_formats?.gif?.url || gif.media_formats?.mediumgif?.url || gif.media_formats?.tinygif?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, false)}><img src={gif.media_formats?.tinygif?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">GIFs от Tenor</small></div>}
+          {gifPickerFor === "channel" && <div className="gif-picker"><div className="gif-picker-top"><strong>Поиск GIF</strong><button type="button" onClick={() => setGifPickerFor(null)} aria-label="Закрыть GIF"><X size={17}/></button></div><input className="gif-search" value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Найти GIF…"/><div className="gif-results">{gifLoading ? <span className="gif-state">Загружаю GIF…</span> : gifError ? <span className="gif-state">{gifError}</span> : gifResults.map((gif) => { const url = gif.images?.original?.url || gif.images?.fixed_width?.url || gif.images?.fixed_width_small?.url; return url ? <button type="button" className="gif-result" key={gif.id} onClick={() => void sendGif(url, false)}><img src={gif.images?.fixed_width_small?.url || gif.images?.fixed_width?.url || url} alt={gif.title || "GIF"} loading="lazy"/></button> : null; })}</div><small className="gif-attribution">Powered by GIPHY</small></div>}
           <form className="composer" onSubmit={sendMessage}>
             <label className="composer-plus" title="Прикрепить файл"><Plus size={22}/><input type="file" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setDraft((d) => `${d}${d ? " " : ""}[Файл: ${file.name}]`); e.currentTarget.value = ""; }}/></label>
             <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={slowmodeRemaining > 0} placeholder={slowmodeRemaining > 0 ? `Можно написать через ${slowmodeRemaining} сек.` : `Написать в #${activeChannel?.name || "канал"}`} aria-label="Сообщение" />
