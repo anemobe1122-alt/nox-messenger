@@ -30,7 +30,7 @@ function ProfileAvatar({ profile, name, className, avatarBackground }: { profile
   const avatar = avatarUrl && !isGifAvatar
     ? <img className={`${className} profile-avatar-image`} src={avatarUrl} alt={`${name} — аватар`} />
     : <span className={className}>{initials(name)}</span>;
-  const avatarWithBackground = <span className={`avatar-background-wrap ${className}`} style={avatarBackground ? { backgroundColor: avatarBackground } : undefined}>{avatar}</span>;
+  const avatarWithBackground = <span className="avatar-background-wrap" style={avatarBackground ? { backgroundColor: avatarBackground } : undefined}>{avatar}</span>;
   return profile?.presence_status ? <span className="avatar-presence-wrap">{avatarWithBackground}<i className={`presence-dot status-${profile.presence_status}`} title={profile.presence_status === "invisible" ? "Не в сети" : presenceLabel(profile.presence_status)} /></span> : avatarWithBackground;
 }
 function presenceLabel(status: PresenceStatus) {
