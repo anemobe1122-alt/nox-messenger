@@ -70,3 +70,36 @@
   .app-shell.home-shell { grid-template-columns: 62px minmax(0, 1fr); }
   .dm-conversation.dm-chat { padding: 13px 12px 16px; }
 }
+
+
+/* Keep the DM conversation header avatar bounded at the wrapper level too.
+   ProfileAvatar adds an inline-grid wrapper around the image, so sizing only
+   the image can leave the wrapper free to grow in some layout contexts. */
+.dm-chat > .avatar-background-wrap,
+.dm-chat > .avatar-presence-wrap,
+.dm-chat > .avatar-presence-wrap > .avatar-background-wrap {
+  display: inline-grid;
+  width: 80px;
+  height: 80px;
+  min-width: 80px;
+  min-height: 80px;
+  max-width: 80px;
+  max-height: 80px;
+  flex: 0 0 80px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.dm-chat > .avatar-background-wrap > .dm-conversation-avatar,
+.dm-chat > .avatar-presence-wrap > .avatar-background-wrap > .dm-conversation-avatar {
+  display: block;
+  width: 80px;
+  height: 80px;
+  min-width: 80px;
+  min-height: 80px;
+  max-width: 80px;
+  max-height: 80px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 50%;
+}
