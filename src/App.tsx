@@ -936,7 +936,7 @@ export default function App() {
         metadata: replyTarget?.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
       });
       if (error) { showNotice("Сообщение не отправлено. Возможно, у тебя нет доступа к чату."); return; }
-      setDmDraft("");
+      setDmDraft(""); setReplyTarget(null);
       return;
     }
     const item: Message = {
@@ -973,7 +973,7 @@ export default function App() {
       const next = [...messages, local];
       localStorage.setItem(`nox-messages-${activeChannel.id}`, JSON.stringify(next));
       if (cooldown > 0) setSlowmodeUntil((old) => ({ ...old, [activeChannel.id]: Date.now() + cooldown * 1000 }));
-      setDraft("");
+      setDraft(""); setReplyTarget(null);
       return;
     }
     const { error } = await supabase.from("messages").insert({
