@@ -141,15 +141,6 @@ export default function App() {
   useEffect(() => { localStorage.setItem("nox-dm-messages", JSON.stringify(dmMessages)); }, [dmMessages]);
 
   useEffect(() => {
-    const container = activeDm ? dmScrollRef.current : channelScrollRef.current;
-    if (!container) return;
-    const frame = window.requestAnimationFrame(() => {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeDm, activeDmKey, activeChannelId, dmMessages, visibleMessages.length]);
-
-  useEffect(() => {
     if (!gifPickerFor) return;
     const apiKey = import.meta.env.VITE_GIPHY_API_KEY;
     if (!apiKey) { setGifResults([]); setGifError("Для поиска GIF добавь VITE_GIPHY_API_KEY в GitHub Actions Variables."); return; }
@@ -1133,6 +1124,16 @@ export default function App() {
   }
 
   const visibleMessages = useMemo(() => messages, [messages]);
+
+  useEffect(() => {
+    const container = activeDm ? dmScrollRef.current : channelScrollRef.current;
+    if (!container) return;
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeDm, activeDmKey, activeChannelId, dmMessages, visibleMessages.length]);
+
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLocaleLowerCase();
     if (!q) return [];
