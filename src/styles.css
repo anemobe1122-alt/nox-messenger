@@ -1299,3 +1299,26 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   border:3px solid #1e1f22 !important;
   border-radius:50% !important;
 }
+
+
+/* Voice channel layout */
+.voice-section-heading { margin-top: 22px; }
+.voice-channel-item { width:100%; text-align:left; }
+.voice-live-dot,.voice-participant i { width:9px;height:9px;border-radius:50%;background:#36b56b;display:inline-block;margin-left:auto;box-shadow:0 0 10px #36b56b66; }
+.voice-room-panel { width:min(760px,calc(100% - 48px)); margin:auto; padding:42px 28px; border:1px solid var(--border-color,rgba(255,255,255,.08)); border-radius:18px; background:linear-gradient(145deg,rgba(105,83,190,.18),rgba(25,25,33,.94) 48%); text-align:center; }
+.voice-room-icon { width:64px;height:64px;border-radius:20px;background:rgba(111,99,255,.18);color:#aaa2ff;display:grid;place-items:center;margin:0 auto 18px; }
+.voice-room-panel h2 { margin:0 0 8px;font-size:26px; }
+.voice-room-panel>p { color:var(--muted,#a4a4b4);margin:0 0 28px; }
+.voice-participants { display:flex;flex-wrap:wrap;justify-content:center;gap:12px;min-height:76px;align-items:center;margin:0 auto 24px; }
+.voice-participant { display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.055);font-size:14px; }
+.voice-participant .avatar,.voice-peer-avatar { width:34px;height:34px;border-radius:50%;object-fit:cover; }
+.voice-peer-avatar { display:grid;place-items:center;background:#5146a5;color:white;font-weight:700; }
+.voice-participant i.muted { background:#e05260;box-shadow:none; }
+.voice-empty,.voice-beta-note { color:var(--muted,#999);font-size:13px; }
+.voice-controls { display:flex;justify-content:center;flex-wrap:wrap;gap:10px; }
+.voice-controls button { border:0;border-radius:10px;padding:12px 18px;background:#4f5fe9;color:white;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600; }
+.voice-controls button.voice-control-on { background:#45404e; }
+.voice-controls button.voice-disconnect { background:#b43d4b; }
+.voice-controls button.voice-connect { background:#218b59; }
+.voice-beta-note { display:block;margin-top:18px; }
+.voice-hidden { display:none !important; }
