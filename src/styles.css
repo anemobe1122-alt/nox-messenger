@@ -1203,3 +1203,36 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .profile-popover-avatar {
   transform: translate(-10px, -11px);
 }
+
+
+/* Render Nitro decoration on the outer avatar wrapper, behind the photo */
+.avatar-background-wrap.nitro-frame-violet,
+.avatar-background-wrap.nitro-frame-gold,
+.avatar-background-wrap.nitro-frame-rainbow,
+.avatar-background-wrap.nitro-frame-fire,
+.avatar-background-wrap.nitro-frame-ice,
+.avatar-background-wrap.nitro-frame-sakura,
+.avatar-background-wrap.nitro-frame-matrix {
+  position:relative !important;
+  overflow:visible !important;
+  isolation:isolate;
+}
+.avatar-background-wrap.nitro-frame-violet > .profile-avatar-image,
+.avatar-background-wrap.nitro-frame-gold > .profile-avatar-image,
+.avatar-background-wrap.nitro-frame-rainbow > .profile-avatar-image,
+.avatar-background-wrap.nitro-frame-fire > .profile-avatar-image,
+.avatar-background-wrap.nitro-frame-ice > .profile-avatar-image,
+.avatar-background-wrap.nitro-frame-sakura > .profile-avatar-image,
+.avatar-background-wrap.nitro-frame-matrix > .profile-avatar-image,
+.avatar-background-wrap.nitro-frame-violet > .avatar,
+.avatar-background-wrap.nitro-frame-gold > .avatar,
+.avatar-background-wrap.nitro-frame-rainbow > .avatar,
+.avatar-background-wrap.nitro-frame-fire > .avatar,
+.avatar-background-wrap.nitro-frame-ice > .avatar,
+.avatar-background-wrap.nitro-frame-sakura > .avatar,
+.avatar-background-wrap.nitro-frame-matrix > .avatar {
+  position:relative;
+  z-index:1;
+  outline:none !important;
+  box-shadow:none !important;
+}
