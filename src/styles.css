@@ -823,3 +823,11 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .message-reaction-chips { display:flex; gap:5px; margin:5px 0; }
 .message-reaction-chips span { padding:2px 7px; border:1px solid #454657; border-radius:12px; background:#292a35; font-size:12px; }
 @media (hover:none) { .message-actions { opacity:1; visibility:visible; transform:none; } }
+
+
+.reply-composer-banner { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 7px; padding:8px 11px; border-left:3px solid #8172f4; border-radius:5px; color:#bfc0cc; background:#252631; font-size:11px; }
+.reply-composer-banner span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.reply-composer-banner button { display:grid; place-items:center; border:0; color:#aeb0bd; background:transparent; }
+.message-reply-quote { display:flex; flex-direction:column; gap:2px; max-width:460px; margin:2px 0 7px; padding:5px 9px; border-left:3px solid #8172f4; border-radius:3px; background:#22232c; color:#aeb0bd; font-size:10px; }
+.message-reply-quote b { color:#c9c4ff; }
+.message-reply-quote span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
