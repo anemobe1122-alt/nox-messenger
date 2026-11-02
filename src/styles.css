@@ -1024,7 +1024,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 
 /* Final profile-card layout: frame belongs to the image, never to its wrapper */
 .profile-popover { overflow-x:hidden; }
-.profile-popover-main { position:relative; padding:48px 15px 15px !important; }
+.profile-popover-main { position:relative; padding:16px 15px 15px !important; }
 .profile-popover-avatar {
   position:absolute !important; top:-30px !important; left:15px !important;
   display:grid !important; place-items:center !important;
