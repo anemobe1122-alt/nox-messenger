@@ -604,6 +604,77 @@ export default function App() {
   useEffect(() => { loadMessages(activeChannelId); }, [activeChannelId, loadMessages]);
 
   useEffect(() => {
+    if (!activeVoiceChannelId || !user || !supabase || !voiceStreamRef.current) return;
+    const room = supabase.channel(`voice:${activeVoiceChannelId}`, { config: { presence: { key: user.id }, broadcast: { self: false } } });
+    voiceRoomRef.current = room;
+    const sendSignal = (payload: any) => room.send({ type: "broadcast", event: "signal", payload: { ...payload, from: user.id } });
+    const makePeer = (peerId: string) => {
+      if (voiceConnectionsRef.current[peerId]) return voiceConnectionsRef.current[peerId];
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] });
+      voiceConnectionsRef.current[peerId] = pc;
+      voiceStreamRef.current?.getTracks().forEach(track => pc.addTrack(track, voiceStreamRef.current!));
+      pc.onicecandidate = event => { if (event.candidate) void sendSignal({ to: peerId, candidate: event.candidate }); };
+      pc.ontrack = event => {
+        let audio = voiceAudioRef.current[peerId];
+        if (!audio) { audio = new Audio(); audio.autoplay = true; audio.volume = 1; voiceAudioRef.current[peerId] = audio; }
+        audio.srcObject = event.streams[0];
+        void audio.play().catch(() => undefined);
+      };
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "failed" || pc.connectionState === "closed" || pc.connectionState === "disconnected") {
+          if (pc.connectionState !== "disconnected") { pc.close(); delete voiceConnectionsRef.current[peerId]; const audio=voiceAudioRef.current[peerId]; if(audio){audio.pause();audio.srcObject=null;delete voiceAudioRef.current[peerId];} }
+        }
+      };
+      return pc;
+    };
+    room.on("broadcast", { event: "signal" }, async ({ payload }: any) => {
+      if (!payload || payload.to !== user.id || payload.from === user.id) return;
+      const pc = makePeer(payload.from);
+      try {
+        if (payload.description?.type === "offer") {
+          await pc.setRemoteDescription(payload.description);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await sendSignal({ to: payload.from, description: pc.localDescription });
+        } else if (payload.description?.type === "answer") {
+          await pc.setRemoteDescription(payload.description);
+        } else if (payload.candidate) {
+          await pc.addIceCandidate(payload.candidate);
+        }
+      } catch (error) { console.warn("Voice signaling error", error); }
+    });
+    room.on("presence", { event: "sync" }, () => {
+      const state = room.presenceState() as Record<string, any[]>;
+      const people = Object.values(state).flat().filter((item: any) => item.user_id && item.user_id !== user.id);
+      setVoicePeers(people.map((item: any) => ({ id: item.user_id, username: item.username || "user", displayName: item.display_name || item.username || "Участник" })));
+      people.forEach(async (person: any) => {
+        if (String(user.id) < String(person.user_id) && !voiceConnectionsRef.current[person.user_id]) {
+          const pc = makePeer(person.user_id);
+          try { const offer = await pc.createOffer(); await pc.setLocalDescription(offer); await sendSignal({ to: person.user_id, description: pc.localDescription }); } catch (error) { console.warn("Voice offer error", error); }
+        }
+      });
+    });
+    room.subscribe(async (status: string) => {
+      if (status === "SUBSCRIBED") {
+        await room.track({ user_id: user.id, username: profile?.username || user.email || "user", display_name: profile?.display_name || profile?.username || user.email || "Участник" });
+      }
+    });
+    return () => {
+      void room.untrack();
+      void supabase!.removeChannel(room);
+      Object.values(voiceConnectionsRef.current).forEach(pc => pc.close());
+      voiceConnectionsRef.current = {};
+      Object.values(voiceAudioRef.current).forEach(audio => { audio.pause(); audio.srcObject = null; });
+      voiceAudioRef.current = {};
+      voiceStreamRef.current?.getTracks().forEach(track => track.stop());
+      voiceStreamRef.current = null;
+      voiceRoomRef.current = null;
+      setVoicePeers([]);
+    };
+  }, [activeVoiceChannelId, user, profile]);
+
+
+  useEffect(() => {
     const until = slowmodeUntil[activeChannelId] || 0;
     if (!until || until <= Date.now()) { setSlowmodeRemaining(0); return; }
     let timer = 0;
