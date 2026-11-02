@@ -933,7 +933,7 @@ export default function App() {
     if (supabase && user && activeDmContact.conversationId) {
       const { error } = await supabase.from("direct_messages").insert({
         conversation_id: activeDmContact.conversationId, user_id: user.id, content,
-        metadata: replyTarget?.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
+        ...(replyTarget?.direct ? { metadata: { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } } : {})
       });
       if (error) { console.error("Nox direct message insert failed:", error); showNotice(`Ошибка отправки: ${error.message}`); return; }
       setDmDraft(""); setReplyTarget(null);
@@ -978,7 +978,7 @@ export default function App() {
     }
     const { error } = await supabase.from("messages").insert({
       channel_id: activeChannel.id, user_id: user.id, content,
-      metadata: replyTarget && !replyTarget.direct ? { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } : null
+      ...(replyTarget && !replyTarget.direct ? { metadata: { reply_to: replyTarget.id, reply_to_user_id: replyTarget.userId, reply_author: replyTarget.author, reply_content: replyTarget.content } } : {})
     });
     if (error) {
       const slowmode = error.message.match(/SLOWMODE:(\d+)/);
