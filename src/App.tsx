@@ -1558,7 +1558,7 @@ export default function App() {
             <label>Рамка аватара<select value={nitroFrameDraft} onChange={(e) => setNitroFrameDraft(e.target.value)}><option value="none">Без рамки</option><option value="violet">Фиолетовое свечение</option><option value="gold">Золотая</option><option value="rainbow">Радужная</option></select></label>
             <label>Цвет профиля<input type="color" value={nitroAccentDraft} onChange={(e) => setNitroAccentDraft(e.target.value)} /></label>
             <small>GIF-аватарку можно загрузить через кнопку смены аватара.</small>
-          </section>
+          </section>}
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setProfileSettingsOpen(false)}>Отмена</button><button className="primary-button" disabled={profileSaving}>{profileSaving ? "Сохраняю…" : "Сохранить"}</button></div>
         </form>
       </div>}
