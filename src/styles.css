@@ -948,3 +948,21 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .dm-item .dm-avatar { display:grid; width:100%; height:100%; min-width:0; max-width:100%; min-height:0; max-height:100%; aspect-ratio:1; object-fit:cover; border-radius:50%; overflow:hidden; }
 .dm-item .dm-name { min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .dm-item > i { flex:0 0 8px; }
+
+
+/* Global avatar wrapper sizing: keep the wrapper tied to the intended avatar slot */
+.avatar-background-wrap { width:36px; height:36px; min-width:0; min-height:0; flex:0 0 auto; overflow:hidden; border-radius:50%; }
+.avatar-background-wrap > img,
+.avatar-background-wrap > .profile-avatar-image,
+.avatar-background-wrap > .avatar { display:grid; width:100%; height:100%; min-width:0; min-height:0; max-width:100%; max-height:100%; aspect-ratio:1; object-fit:cover; border-radius:inherit; }
+.avatar-background-wrap.dm-avatar { width:36px; height:36px; }
+.avatar-background-wrap.self-avatar { width:34px; height:34px; }
+.avatar-background-wrap.message-avatar { width:36px; height:36px; }
+.avatar-background-wrap.dm-conversation-avatar { width:44px; height:44px; }
+.avatar-background-wrap.member-avatar { width:32px; height:32px; }
+.avatar-background-wrap.profile-edit-avatar { width:58px; height:58px; }
+.profile-edit-avatar-row .avatar-background-wrap { width:58px; height:58px; }
+.profile-popover-avatar > .avatar-background-wrap { width:68px; height:68px; }
+.profile-preview-avatar > .avatar-background-wrap { width:78px; height:78px; }
+.dm-item > .avatar-background-wrap { width:36px; height:36px; min-width:36px; max-width:36px; }
+.friend-row > .avatar-background-wrap { width:36px; height:36px; min-width:36px; max-width:36px; }
