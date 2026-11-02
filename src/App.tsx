@@ -1365,7 +1365,7 @@ export default function App() {
             </div>
           )) : <p className="empty-small">Пока нет каналов.</p>}
           <div className="section-heading voice-section-heading"><span>ГОЛОСОВЫЕ КАНАЛЫ</span><button title="Создать голосовой канал" onClick={() => { setNewChannelType("voice"); setCreateChannelOpen(true); }}><Plus size={16}/></button></div>
-          {channels.filter(channel => channel.type === "voice").map(channel => <button key={channel.id} className={`channel-item voice-channel-item ${activeChannelId === channel.id ? "active" : ""}`} onClick={() => { chooseChannel(channel); setActiveVoiceChannelId(""); }}><Headphones size={18}/><span>{channel.name}</span>{activeVoiceChannelId === channel.id && <i className="voice-live-dot"/>}</button>}
+          {channels.filter(channel => channel.type === "voice").map(channel => <button key={channel.id} className={`channel-item voice-channel-item ${activeChannelId === channel.id ? "active" : ""}`} onClick={() => { chooseChannel(channel); setActiveVoiceChannelId(""); }}><Headphones size={18}/><span>{channel.name}</span>{activeVoiceChannelId === channel.id && <i className="voice-live-dot"/>}</button>)}
         </div>
         <div className="profile-bar">
           <button type="button" className="profile-avatar-button" title="Открыть профиль" onClick={openProfilePopover}><ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar self-avatar" /></button>
