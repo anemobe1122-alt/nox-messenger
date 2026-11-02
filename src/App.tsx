@@ -4,7 +4,7 @@ import "./home.css";
 import {
   Hash, Plus, Compass, MessageCircle, Settings, Search, Send, Users, ArrowLeft,
   ChevronDown, Headphones, Mic, Bell, LogOut, X, LoaderCircle, ShieldCheck,
-  Sparkles, UserRound, Store, MessageSquare, CirclePlus, Trash2, UserPlus, UserCheck, ImagePlus, Images
+  Sparkles, UserRound, Store, MessageSquare, CirclePlus, Trash2, UserPlus, UserCheck, ImagePlus, Images, Heart, Reply, Forward, MoreHorizontal
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
@@ -50,6 +50,8 @@ export default function App() {
   const [memberCardProfile, setMemberCardProfile] = useState<Profile | null>(null);
   const [memberCardAnchor, setMemberCardAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [memberCardIsOwn, setMemberCardIsOwn] = useState(false);
+  const [messageReactions, setMessageReactions] = useState<Record<string, string[]>>({});
+  const [messageMenuOpen, setMessageMenuOpen] = useState<string | null>(null);
   const [profilePopoverAnchor, setProfilePopoverAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [profileSettingsOpen, setProfileSettingsOpen] = useState(false);
   const [profileUsernameDraft, setProfileUsernameDraft] = useState("");
@@ -1236,8 +1238,16 @@ export default function App() {
                 <button type="button" className="message-profile-trigger" aria-label={`Открыть профиль ${sender}`} onClick={(e) => void openMemberCard(e, isOwn ? profile : m.profile, isOwn)}><ProfileAvatar profile={isOwn ? profile : m.profile} name={sender} className={`avatar message-avatar ${isOwn ? "own" : ""}`} /></button>
                 <div className="message-body">
                   <div className="message-meta"><button type="button" className="message-name-trigger" onClick={(e) => void openMemberCard(e, isOwn ? profile : m.profile, isOwn)}>{sender}</button><time>{timeLabel(m.created_at)}</time>
-                    {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(m, true)}><Trash2 size={15}/></button>}
+                    <div className="message-actions" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" title="❤️" onClick={() => setMessageReactions(old => ({...old,[m.id]: old[m.id]?.includes("❤️") ? old[m.id].filter(x=>x!=="❤️") : [...(old[m.id]||[]),"❤️"]}))}>❤️</button>
+                      <button type="button" title="💀" onClick={() => setMessageReactions(old => ({...old,[m.id]: old[m.id]?.includes("💀") ? old[m.id].filter(x=>x!=="💀") : [...(old[m.id]||[]),"💀"]}))}>💀</button>
+                      <button type="button" title="Ответить" onClick={() => setDmDraft(`↪ ${sender}: ${m.content.startsWith("GIF:") ? "[GIF]" : m.content}\n`)}><Reply size={15}/></button>
+                      <button type="button" title="Копировать" onClick={() => void navigator.clipboard?.writeText(m.content.startsWith("GIF:") ? m.content.slice(4) : m.content)}><Forward size={15}/></button>
+                      <button type="button" title="Ещё" onClick={() => setMessageMenuOpen(messageMenuOpen===m.id?null:m.id)}><MoreHorizontal size={16}/></button>
+                      {messageMenuOpen===m.id && <div className="message-more-menu">{isOwn && <button type="button" onClick={() => {setMessageMenuOpen(null);void deleteMessage(m,true);}}><Trash2 size={14}/> Удалить сообщение</button>}<button type="button" onClick={() => {setMessageMenuOpen(null);void navigator.clipboard?.writeText(m.content);}}>Копировать текст</button></div>}
+                    </div>
                   </div>
+                  {!!messageReactions[m.id]?.length && <div className="message-reaction-chips">{messageReactions[m.id].map(emoji=><span key={emoji}>{emoji}</span>)}</div>}
                   {m.message_type === "server_invite" && m.metadata?.server_id ? <div className="dm-server-invite-card">
                     <div className="dm-server-invite-cover"><span>{initials(m.metadata.server_name || "N")}</span></div>
                     <div className="dm-server-invite-content">
@@ -1327,8 +1337,16 @@ export default function App() {
                 <button type="button" className="message-profile-trigger" aria-label={`Открыть профиль ${name}`} onClick={(e) => void openMemberCard(e, isOwn ? profile : message.profile, isOwn)}><ProfileAvatar profile={isOwn ? profile : message.profile} name={name} className={`avatar message-avatar ${isOwn ? "own" : ""}`} /></button>
                 <div className="message-body">
                   <div className="message-meta"><button type="button" className="message-name-trigger" onClick={(e) => void openMemberCard(e, isOwn ? profile : message.profile, isOwn)}>{name}</button><time>{timeLabel(message.created_at)}</time>
-                    {isOwn && <button type="button" className="message-delete-button" title="Удалить сообщение" aria-label="Удалить сообщение" onClick={() => void deleteMessage(message, false)}><Trash2 size={15}/></button>}
+                    <div className="message-actions" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" title="❤️" onClick={() => setMessageReactions(old => ({...old,[message.id]: old[message.id]?.includes("❤️") ? old[message.id].filter(x=>x!=="❤️") : [...(old[message.id]||[]),"❤️"]}))}>❤️</button>
+                      <button type="button" title="💀" onClick={() => setMessageReactions(old => ({...old,[message.id]: old[message.id]?.includes("💀") ? old[message.id].filter(x=>x!=="💀") : [...(old[message.id]||[]),"💀"]}))}>💀</button>
+                      <button type="button" title="Ответить" onClick={() => setDraft(`↪ ${name}: ${message.content.startsWith("GIF:") ? "[GIF]" : message.content}\n`)}><Reply size={15}/></button>
+                      <button type="button" title="Копировать" onClick={() => void navigator.clipboard?.writeText(message.content.startsWith("GIF:") ? message.content.slice(4) : message.content)}><Forward size={15}/></button>
+                      <button type="button" title="Ещё" onClick={() => setMessageMenuOpen(messageMenuOpen===message.id?null:message.id)}><MoreHorizontal size={16}/></button>
+                      {messageMenuOpen===message.id && <div className="message-more-menu">{isOwn && <button type="button" onClick={() => {setMessageMenuOpen(null);void deleteMessage(message,false);}}><Trash2 size={14}/> Удалить сообщение</button>}<button type="button" onClick={() => {setMessageMenuOpen(null);void navigator.clipboard?.writeText(message.content);}}>Копировать текст</button></div>}
+                    </div>
                   </div>
+                  {!!messageReactions[message.id]?.length && <div className="message-reaction-chips">{messageReactions[message.id].map(emoji=><span key={emoji}>{emoji}</span>)}</div>}
                   <MessageContent content={message.content} />
                 </div>
               </article>
