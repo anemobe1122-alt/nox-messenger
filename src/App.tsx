@@ -373,8 +373,8 @@ export default function App() {
     setMemberCardAnchor({ left: Math.max(10, Math.min(rect.left, window.innerWidth - width - 10)), bottom: Math.max(12, window.innerHeight - rect.top + 8) });
     setMemberCardIsOwn(own || (!!user && person.id === user.id));
     setMemberCardProfile(person);
-    if (supabase && person.id && (!person.bio && !person.presence_status)) {
-      const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio, nitro_expires_at, nitro_banner_url, nitro_frame, nitro_accent_color").eq("id", person.id).maybeSingle();
+    if (supabase && person.id && (own || !person.bio && !person.presence_status)) {
+      const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio, nitro_expires_at, nitro_banner_url, nitro_frame, nitro_accent_color, nitro_avatar_bg").eq("id", person.id).maybeSingle();
       if (data) setMemberCardProfile(data as Profile);
     }
   }
@@ -1797,6 +1797,7 @@ export default function App() {
             <strong>{memberCardProfile.display_name || memberCardProfile.username}</strong>
             <span className="profile-popover-username">@{memberCardProfile.username}</span>
             <div className="profile-popover-status"><i className={`presence-dot status-${memberCardProfile.presence_status || "invisible"}`}/>{memberCardProfile.presence_status ? presenceLabel(memberCardProfile.presence_status) : "Статус не указан"}</div>
+            {memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() && <span className="nox-nitro-badge">💎 NOX NITRO</span>}
             <div className="profile-popover-bio">{memberCardProfile.bio?.trim() || "Пока без описания."}</div>
             {memberCardIsOwn ? <button type="button" className="profile-edit-button" onClick={() => { closeMemberCard(); openProfileSettings(); }}><Settings size={15}/> Редактировать профиль</button> : <button type="button" className="profile-edit-button" onClick={() => { const person = memberCardProfile; closeMemberCard(); void openDirectChat(person); }}><MessageSquare size={15}/> Написать сообщение</button>}
           </div>
