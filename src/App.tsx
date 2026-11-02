@@ -25,8 +25,10 @@ function initials(value: string) {
   return value.trim().slice(0, 2).toUpperCase() || "N";
 }
 function ProfileAvatar({ profile, name, className, avatarBackground }: { profile?: Profile | null; name: string; className: string; avatarBackground?: string }) {
-  const avatar = profile?.avatar_url
-    ? <img className={`${className} profile-avatar-image`} src={profile.avatar_url} alt={`${name} — аватар`} />
+  const avatarUrl = profile?.avatar_url || "";
+  const isGifAvatar = /\\.gif(?:$|[?#])/i.test(avatarUrl);
+  const avatar = avatarUrl && !isGifAvatar
+    ? <img className={`${className} profile-avatar-image`} src={avatarUrl} alt={`${name} — аватар`} />
     : <span className={className}>{initials(name)}</span>;
   const avatarWithBackground = <span className={`avatar-background-wrap ${className}`} style={avatarBackground ? { backgroundColor: avatarBackground } : undefined}>{avatar}</span>;
   return profile?.presence_status ? <span className="avatar-presence-wrap">{avatarWithBackground}<i className={`presence-dot status-${profile.presence_status}`} title={profile.presence_status === "invisible" ? "Не в сети" : presenceLabel(profile.presence_status)} /></span> : avatarWithBackground;
@@ -920,9 +922,9 @@ export default function App() {
       showNotice("Войди в аккаунт, чтобы установить общий аватар.");
       return;
     }
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024) {
-      showNotice("Выбери JPG, PNG, WebP или GIF размером до 5 МБ.");
+      showNotice("Выбери JPG, PNG или WebP размером до 5 МБ. GIF-аватарки больше не поддерживаются.");
       return;
     }
     const extension = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
@@ -1573,7 +1575,7 @@ export default function App() {
             </div></div>
             <label>Цвет профиля<input type="color" value={nitroAccentDraft} onChange={(e) => setNitroAccentDraft(e.target.value)} /></label>
             <label>Фон за аватаркой<input type="color" value={nitroAvatarBgDraft} onChange={(e) => setNitroAvatarBgDraft(e.target.value)} /></label>
-            <small>GIF-аватарку можно загрузить через кнопку смены аватара.</small>
+            <small>Поддерживаются JPG, PNG и WebP. Анимированные GIF-аватарки отключены.</small>
           </section>}
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setProfileSettingsOpen(false)}>Отмена</button><button className="primary-button" disabled={profileSaving}>{profileSaving ? "Сохраняю…" : "Сохранить"}</button></div>
           </div>
@@ -1596,7 +1598,7 @@ export default function App() {
         </form>
       </div>}
 
-      <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={uploadAvatar} />
+      <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={uploadAvatar} />
       {notice && <div className="toast" role="status">{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
 
       {channelSettingsOpen && activeChannel && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setChannelSettingsOpen(false); }}>
