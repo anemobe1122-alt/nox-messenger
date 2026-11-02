@@ -1332,3 +1332,20 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .voice-participant.is-speaking>i { background:#36d477; box-shadow:0 0 0 4px rgba(54,181,107,.16),0 0 12px #36d477; }
 .speaking-label { color:#5cdb8a; font-size:11px; font-weight:700; margin-left:4px; animation:voice-speaking-pulse 1s ease-in-out infinite; }
 @keyframes voice-speaking-pulse { 50% { opacity:.55; } }
+
+
+.nitro-shop{width:min(100%,760px);margin:28px auto 56px;padding:0 20px;display:flex;justify-content:center}
+.nitro-shop-card{width:min(100%,520px);padding:34px;border:1px solid rgba(157,123,255,.35);border-radius:24px;background:radial-gradient(circle at 50% 0,rgba(139,117,255,.2),transparent 48%),var(--panel, #171722);box-shadow:0 18px 60px rgba(0,0,0,.2);text-align:center}
+.nitro-shop-gem{font-size:48px;margin-bottom:8px}
+.nitro-shop-eyebrow{font-size:11px;font-weight:800;letter-spacing:2px;color:#b7a5ff}
+.nitro-shop-card h2{font-size:30px;margin:8px 0}
+.nitro-shop-card>p{color:var(--muted,#aaa);line-height:1.55}
+.nitro-shop-price{font-size:34px;font-weight:850;margin:22px 0 16px}
+.nitro-shop-price small{font-size:13px;font-weight:500;color:var(--muted,#aaa)}
+.nitro-shop-card ul{list-style:none;padding:0;margin:0 auto 24px;display:grid;gap:12px;text-align:left;max-width:300px}
+.nitro-shop-card li{font-size:14px}
+.nitro-buy-button{width:100%;max-width:320px;border:0;border-radius:12px;padding:14px 20px;background:linear-gradient(100deg,#9878ff,#7055d9);color:white;font-weight:800;font-size:15px;cursor:pointer}
+.nitro-buy-button:disabled{opacity:.45;cursor:not-allowed}
+.nitro-shop-note{display:block;max-width:360px;margin:14px auto 0;color:var(--muted,#999);font-size:11px;line-height:1.5}
+.nitro-shop-active{color:#9ee6b0!important;font-weight:700}
+@media(max-width:600px){.nitro-shop{padding:0 12px;margin-top:16px}.nitro-shop-card{padding:26px 20px}}
