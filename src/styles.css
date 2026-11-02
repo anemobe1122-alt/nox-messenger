@@ -614,7 +614,23 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .modal label input:focus { border-color: #9183f3; }
 .modal label textarea { min-height: 88px; resize: vertical; border: 1px solid #41424e; border-radius: 8px; padding: 11px 12px; outline: none; color: #f0eff8; background: #191a20; font: inherit; font-size: 12px; line-height: 1.5; text-transform: none; letter-spacing: 0; }
 .modal label textarea:focus { border-color: #9183f3; }
-.profile-edit-modal { gap: 12px; }
+.profile-edit-modal {
+  gap: 12px;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #62558e transparent;
+}
+.profile-edit-modal::-webkit-scrollbar { width: 7px; }
+.profile-edit-modal::-webkit-scrollbar-thumb { border-radius: 8px; background: #62558e; }
+@media (max-width: 600px) {
+  .modal-backdrop { place-items: center; padding: 10px; overflow-y: auto; }
+  .profile-edit-modal { width: min(100%, 440px); max-height: calc(100dvh - 20px); padding: 20px 16px; }
+  .nitro-frame-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .nitro-frame-choice { padding: 8px 3px; }
+}
 .profile-edit-avatar-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; background: #2b2d31; }
 .profile-edit-avatar-row > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .profile-edit-avatar-row > div strong { color: #f2f3f5; font-size: 12px; }
