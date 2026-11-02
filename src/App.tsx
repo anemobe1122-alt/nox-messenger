@@ -9,7 +9,7 @@ import {
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
-type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus; bio?: string | null; nitro_expires_at?: string | null };
+type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus; bio?: string | null; nitro_expires_at?: string | null; nitro_banner_url?: string | null; nitro_frame?: string | null; nitro_accent_color?: string | null };
 type DmContact = Profile & { conversationId?: string };
 type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
@@ -65,6 +65,9 @@ export default function App() {
   const [profileUsernameDraft, setProfileUsernameDraft] = useState("");
   const [profileNameDraft, setProfileNameDraft] = useState("");
   const [profileBioDraft, setProfileBioDraft] = useState("");
+  const [nitroBannerDraft, setNitroBannerDraft] = useState("");
+  const [nitroFrameDraft, setNitroFrameDraft] = useState("none");
+  const [nitroAccentDraft, setNitroAccentDraft] = useState("#8b75ff");
   const [profileSaving, setProfileSaving] = useState(false);
   const [friendRelations, setFriendRelations] = useState<FriendRelation[]>([]);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -292,7 +295,7 @@ export default function App() {
     const personIds = [...new Set(rows.map((row: any) => row.requester_id === uid ? row.addressee_id : row.requester_id))];
     if (!personIds.length) { setFriendRelations([]); return; }
     const { data: people, error: peopleError } = await supabase.from("profiles")
-      .select("id, username, display_name, avatar_url, presence_status, bio").in("id", personIds);
+      .select("id, username, display_name, avatar_url, presence_status, bio, nitro_expires_at, nitro_banner_url, nitro_frame, nitro_accent_color").in("id", personIds);
     if (peopleError) { showNotice("Не удалось загрузить профили друзей."); return; }
     const profilesById = new Map((people || []).map((person: any) => [person.id, person as Profile]));
     setFriendRelations(rows.flatMap((row: any) => {
@@ -338,7 +341,7 @@ export default function App() {
     setMemberCardIsOwn(own || (!!user && person.id === user.id));
     setMemberCardProfile(person);
     if (supabase && person.id && (!person.bio && !person.presence_status)) {
-      const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio").eq("id", person.id).maybeSingle();
+      const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url, presence_status, bio, nitro_expires_at, nitro_banner_url, nitro_frame, nitro_accent_color").eq("id", person.id).maybeSingle();
       if (data) setMemberCardProfile(data as Profile);
     }
   }
@@ -354,6 +357,9 @@ export default function App() {
     setProfileUsernameDraft(profile?.username || "");
     setProfileNameDraft(profile?.display_name || profile?.username || "");
     setProfileBioDraft(profile?.bio || "");
+    setNitroBannerDraft(profile?.nitro_banner_url || "");
+    setNitroFrameDraft(profile?.nitro_frame || "none");
+    setNitroAccentDraft(profile?.nitro_accent_color || "#8b75ff");
     setProfilePopoverOpen(false);
     setProfileSettingsOpen(true);
     setPresenceMenuOpen(false);
@@ -369,7 +375,7 @@ export default function App() {
     if (!displayName) { showNotice("Укажи отображаемое имя."); return; }
     setProfileSaving(true);
     const { data, error } = await supabase.from("profiles")
-      .update({ username, display_name: displayName, bio })
+      .update({ username, display_name: displayName, bio, ...(profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? { nitro_banner_url: nitroBannerDraft.trim() || null, nitro_frame: nitroFrameDraft, nitro_accent_color: nitroAccentDraft } : {}) })
       .eq("id", user.id).select("*").single();
     setProfileSaving(false);
     if (error) {
@@ -1487,10 +1493,10 @@ export default function App() {
         <button type="button" className="profile-popover-dismiss" aria-label="Закрыть профиль" onClick={() => setProfilePopoverOpen(false)} />
         <section className="profile-popover" style={{ left: profilePopoverAnchor.left, bottom: profilePopoverAnchor.bottom }}>
           <button type="button" className="profile-popover-close" aria-label="Закрыть" onClick={() => setProfilePopoverOpen(false)}><X size={17}/></button>
-          <div className="profile-popover-banner" />
+          <div className="profile-popover-banner" style={profile?.nitro_banner_url && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? { backgroundImage: `url("${profile.nitro_banner_url}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
           <div className="profile-popover-main">
             <button type="button" className="profile-popover-avatar" title="Сменить аватар" onClick={openAvatarPicker}>
-              <ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className="avatar" />
+              <ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} className={`avatar ${profile?.nitro_frame && profile.nitro_frame !== "none" && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${profile.nitro_frame}` : ""}`} />
               <ImagePlus size={15}/>
             </button>
             <strong>{currentName}</strong>
@@ -1508,9 +1514,9 @@ export default function App() {
         <button type="button" className="profile-popover-dismiss" aria-label="Закрыть профиль" onClick={closeMemberCard} />
         <section className="profile-popover member-profile-card" style={{ left: memberCardAnchor.left, bottom: memberCardAnchor.bottom }}>
           <button type="button" className="profile-popover-close" aria-label="Закрыть" onClick={closeMemberCard}><X size={17}/></button>
-          <div className="profile-popover-banner" />
+          <div className="profile-popover-banner" style={memberCardProfile.nitro_banner_url && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? { backgroundImage: `url("${memberCardProfile.nitro_banner_url}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
           <div className="profile-popover-main">
-            <ProfileAvatar profile={memberCardProfile} name={memberCardProfile.display_name || memberCardProfile.username} className="avatar profile-card-avatar" />
+            <ProfileAvatar profile={memberCardProfile} name={memberCardProfile.display_name || memberCardProfile.username} className={`avatar profile-card-avatar ${memberCardProfile.nitro_frame && memberCardProfile.nitro_frame !== "none" && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${memberCardProfile.nitro_frame}` : ""}`} />
             <strong>{memberCardProfile.display_name || memberCardProfile.username}</strong>
             <span className="profile-popover-username">@{memberCardProfile.username}</span>
             <div className="profile-popover-status"><i className={`presence-dot status-${memberCardProfile.presence_status || "invisible"}`}/>{memberCardProfile.presence_status ? presenceLabel(memberCardProfile.presence_status) : "Статус не указан"}</div>
@@ -1546,6 +1552,13 @@ export default function App() {
           <label>Ник<input value={profileUsernameDraft} onChange={(e) => setProfileUsernameDraft(e.target.value)} maxLength={32} placeholder="username" required /></label>
           <label>О себе<textarea value={profileBioDraft} onChange={(e) => setProfileBioDraft(e.target.value)} maxLength={190} rows={4} placeholder="Расскажи немного о себе" /></label>
           <small className="profile-bio-count">{profileBioDraft.length}/190</small>
+          {profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() && <section className="nitro-customize">
+            <h3>💎 NOX NITRO — оформление</h3>
+            <label>Ссылка на баннер<input type="url" value={nitroBannerDraft} onChange={(e) => setNitroBannerDraft(e.target.value)} placeholder="https://... (GIF или изображение)" /></label>
+            <label>Рамка аватара<select value={nitroFrameDraft} onChange={(e) => setNitroFrameDraft(e.target.value)}><option value="none">Без рамки</option><option value="violet">Фиолетовое свечение</option><option value="gold">Золотая</option><option value="rainbow">Радужная</option></select></label>
+            <label>Цвет профиля<input type="color" value={nitroAccentDraft} onChange={(e) => setNitroAccentDraft(e.target.value)} /></label>
+            <small>GIF-аватарку можно загрузить через кнопку смены аватара.</small>
+          </section>
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setProfileSettingsOpen(false)}>Отмена</button><button className="primary-button" disabled={profileSaving}>{profileSaving ? "Сохраняю…" : "Сохранить"}</button></div>
         </form>
       </div>}
