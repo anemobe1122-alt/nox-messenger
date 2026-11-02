@@ -40,6 +40,15 @@ function ProfileAvatar({ profile, name, className, avatarBackground }: { profile
   const avatarWithBackground = <span className={`avatar-background-wrap ${className}`} style={avatarBackground ? { backgroundColor: avatarBackground } : undefined}>{avatar}</span>;
   return profile?.presence_status ? <span className="avatar-presence-wrap">{avatarWithBackground}<i className={`presence-dot status-${profile.presence_status}`} title={profile.presence_status === "invisible" ? "Не в сети" : presenceLabel(profile.presence_status)} /></span> : avatarWithBackground;
 }
+function ProfileCardAvatar({ profile, name, frameClass = "", avatarBackground }: { profile?: Profile | null; name: string; frameClass?: string; avatarBackground?: string }) {
+  const src = profile?.avatar_url || "";
+  return <span className={`profile-card-avatar-shell ${frameClass}`} aria-label={`${name} — аватар`}>
+    <span className="profile-card-avatar-image-wrap" style={avatarBackground ? { backgroundColor: avatarBackground } : undefined}>
+      {src ? <img src={src} alt="" /> : <span>{initials(name)}</span>}
+    </span>
+    {profile?.presence_status && <i className={`profile-card-avatar-presence status-${profile.presence_status}`} />}
+  </span>;
+}
 function presenceLabel(status: PresenceStatus) {
   return ({ online: "В сети", idle: "Неактивен", dnd: "Не беспокоить", invisible: "Невидимый" } as const)[status];
 }
@@ -1765,7 +1774,7 @@ export default function App() {
           <div className="profile-popover-banner" style={profile?.nitro_banner_url && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? { backgroundImage: `url("${profile.nitro_banner_url}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
           <div className="profile-popover-main">
             <button type="button" className="profile-popover-avatar" title="Сменить аватар" onClick={openAvatarPicker}>
-              <ProfileAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} avatarBackground={profile?.nitro_avatar_bg || undefined} className={`avatar ${profile?.nitro_frame && profile.nitro_frame !== "none" && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${profile.nitro_frame}` : ""}`} />
+              <ProfileCardAvatar profile={{ ...(profile || { id: "profile", username: "profile", display_name: currentName }), presence_status: presence }} name={currentName} avatarBackground={profile?.nitro_avatar_bg || undefined} frameClass={profile?.nitro_frame && profile.nitro_frame !== "none" && profile.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${profile.nitro_frame}` : ""} />
             </button>
             <strong>{currentName}</strong>
             <span className="profile-popover-username">@{profile?.username || "profile"}</span>
@@ -1784,7 +1793,7 @@ export default function App() {
           <button type="button" className="profile-popover-close" aria-label="Закрыть" onClick={closeMemberCard}><X size={17}/></button>
           <div className="profile-popover-banner" style={memberCardProfile.nitro_banner_url && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? { backgroundImage: `url("${memberCardProfile.nitro_banner_url}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
           <div className="profile-popover-main">
-            <ProfileAvatar profile={memberCardProfile} name={memberCardProfile.display_name || memberCardProfile.username} avatarBackground={memberCardProfile.nitro_avatar_bg || undefined} className={`avatar profile-card-avatar ${memberCardProfile.nitro_frame && memberCardProfile.nitro_frame !== "none" && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${memberCardProfile.nitro_frame}` : ""}`} />
+            <ProfileCardAvatar profile={memberCardProfile} name={memberCardProfile.display_name || memberCardProfile.username} avatarBackground={memberCardProfile.nitro_avatar_bg || undefined} frameClass={memberCardProfile.nitro_frame && memberCardProfile.nitro_frame !== "none" && memberCardProfile.nitro_expires_at && new Date(memberCardProfile.nitro_expires_at).getTime() > Date.now() ? `nitro-frame-${memberCardProfile.nitro_frame}` : ""} />
             <strong>{memberCardProfile.display_name || memberCardProfile.username}</strong>
             <span className="profile-popover-username">@{memberCardProfile.username}</span>
             <div className="profile-popover-status"><i className={`presence-dot status-${memberCardProfile.presence_status || "invisible"}`}/>{memberCardProfile.presence_status ? presenceLabel(memberCardProfile.presence_status) : "Статус не указан"}</div>
