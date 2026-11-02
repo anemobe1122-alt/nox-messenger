@@ -19,7 +19,8 @@ Nox is a Discord-inspired dark web messenger starter built with React, TypeScrip
 - Server invitations and joining other users' servers are not implemented yet.
 - The included SQL is a starter, not a complete security audit. Before public production use, add an invitation/join flow and review RLS carefully. The starter only allows a server owner to add their own initial membership; other users cannot join until an invitation/join flow is implemented.
 - Demo messages are local to the browser and are not shared.
-- No voice/video, chat attachments, moderation, or push notifications yet. Message search is limited to content already loaded in the browser.
+- No voice/video, moderation, or push notifications yet. Message search is limited to content already loaded in the browser.
+- GIF search and sending use the Tenor API. Add `VITE_TENOR_API_KEY` to your local `.env.local` and GitHub Actions repository Variables to enable the picker.
 
 ## 1. Run locally
 
@@ -76,6 +77,7 @@ For a public deployment, do not rely on an untracked `.env.local` on GitHub's bu
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+- `VITE_TENOR_API_KEY` (create a key in the Tenor developer portal)
 
 The anon/publishable key is public by design; RLS is what protects data. Using Actions variables makes build setup easier, but never put a `service_role` key here or in frontend code.
 
