@@ -968,3 +968,57 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   min-height:0; max-height:100%; aspect-ratio:1; object-fit:cover; border-radius:50%;
 }
 .dm-item .dm-name { min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+
+/* Message list avatars: fix the wrapper itself, not only the image inside it */
+.message-profile-trigger {
+  display:inline-grid !important;
+  place-items:center !important;
+  width:36px !important;
+  height:36px !important;
+  min-width:36px !important;
+  max-width:36px !important;
+  flex:0 0 36px !important;
+  overflow:visible !important;
+}
+.message-profile-trigger > .avatar-presence-wrap {
+  display:inline-grid !important;
+  position:relative !important;
+  place-items:center !important;
+  width:36px !important;
+  height:36px !important;
+  min-width:36px !important;
+  max-width:36px !important;
+  flex:0 0 36px !important;
+  overflow:visible !important;
+}
+.message-profile-trigger .avatar-background-wrap {
+  display:grid !important;
+  place-items:center !important;
+  width:36px !important;
+  height:36px !important;
+  min-width:36px !important;
+  max-width:36px !important;
+  min-height:36px !important;
+  max-height:36px !important;
+  flex:0 0 36px !important;
+  overflow:hidden !important;
+  border-radius:50% !important;
+}
+.message-profile-trigger .avatar-background-wrap > img,
+.message-profile-trigger .avatar-background-wrap > .avatar,
+.message-profile-trigger .avatar-background-wrap > .profile-avatar-image {
+  display:block !important;
+  width:36px !important;
+  height:36px !important;
+  min-width:36px !important;
+  min-height:36px !important;
+  max-width:36px !important;
+  max-height:36px !important;
+  object-fit:cover !important;
+  border-radius:50% !important;
+}
+.message-profile-trigger > .avatar-presence-wrap > .presence-dot {
+  right:-1px !important;
+  bottom:-1px !important;
+}
