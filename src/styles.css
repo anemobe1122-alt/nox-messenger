@@ -1920,3 +1920,39 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .profile-card-avatar-shell.nitro-frame-rainbow::before {
   box-shadow: 0 0 0 2px #60a5fa, 0 0 0 4px #34d399, 0 0 14px #e879f9cc !important;
 }
+
+
+/* Keep member-list and voice-room avatars constrained to their intended size. */
+.member-row .avatar-presence-wrap,
+.member-row > .member-avatar,
+.member-row .member-avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  min-width: 28px;
+  min-height: 28px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.member-row .avatar-background-wrap,
+.voice-participant .avatar-presence-wrap,
+.voice-participant > .avatar-background-wrap,
+.voice-participant .avatar-background-wrap,
+.voice-participant .voice-peer-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  min-width: 34px;
+  min-height: 34px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.member-row .profile-avatar-image,
+.voice-participant .profile-avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+}
