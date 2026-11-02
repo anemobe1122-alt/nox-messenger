@@ -8,6 +8,7 @@ const { Readable } = require("node:stream");
 const OWNER = "anemobe1122-alt";
 const REPO = "nox-messenger";
 let mainWindow;
+let pendingUpdateInstaller = null;
 function compareVersions(a, b) {
   const left = String(a).replace(/^v/, "").split(".").map(Number);
   const right = String(b).replace(/^v/, "").split(".").map(Number);
@@ -53,15 +54,11 @@ async function checkForNoxUpdates() {
     const ready = await dialog.showMessageBox(mainWindow, {
       type: "info", title: "Обновление скачано",
       message: "Версия " + latest + " готова к установке.",
-      detail: "Nox закроется, установщик обновит приложение и запустит его снова.",
-      buttons: ["Перезапустить и обновить", "Установить при закрытии"], defaultId: 0, cancelId: 1
+      detail: "Можно перезапустить Nox сейчас или установить обновление при следующем закрытии приложения.",
+      buttons: ["Перезапустить и обновить", "Позже"], defaultId: 0, cancelId: 1
     });
     if (ready.response === 1) {
-      app.once("before-quit", () => {
-        const child = spawn(installerPath, ["/S"], { detached: true, stdio: "ignore" });
-        child.unref();
-      });
-      app.quit();
+      pendingUpdateInstaller = installerPath;
       return;
     }
     const child = spawn(installerPath, ["/S"], { detached: true, stdio: "ignore" });
@@ -91,5 +88,11 @@ app.whenReady().then(() => {
   createWindow();
   setTimeout(() => void checkForNoxUpdates(), 5000);
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+app.on("before-quit", () => {
+  if (!pendingUpdateInstaller) return;
+  const child = spawn(pendingUpdateInstaller, ["/S"], { detached: true, stdio: "ignore" });
+  child.unref();
+  pendingUpdateInstaller = null;
 });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
