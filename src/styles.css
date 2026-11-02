@@ -1682,3 +1682,43 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   flex: 0 0 92px !important;
   margin: 0 !important;
 }
+
+
+/* Profile editor: keep the source avatar preview at a compact, fixed size. */
+.profile-edit-modal .profile-editor-preview .profile-preview-avatar {
+  box-sizing: border-box !important;
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  min-height: 92px !important;
+  max-width: 92px !important;
+  max-height: 92px !important;
+  flex: 0 0 92px !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+.profile-edit-modal .profile-editor-preview .profile-preview-avatar > .avatar-presence-wrap,
+.profile-edit-modal .profile-editor-preview .profile-preview-avatar > .avatar-background-wrap {
+  display: inline-grid !important;
+  width: 78px !important;
+  height: 78px !important;
+  min-width: 78px !important;
+  min-height: 78px !important;
+  max-width: 78px !important;
+  max-height: 78px !important;
+  flex: 0 0 78px !important;
+  overflow: hidden !important;
+  border-radius: 50% !important;
+}
+.profile-edit-modal .profile-editor-preview .profile-preview-avatar img,
+.profile-edit-modal .profile-editor-preview .profile-preview-avatar .profile-avatar-image {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
