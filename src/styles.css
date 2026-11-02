@@ -1497,3 +1497,54 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   width: 100%;
   text-align: center;
 }
+
+
+/* Fix the user's own avatar in the bottom profile bar (sidebar). */
+.profile-bar { min-width: 0; overflow: hidden; }
+.profile-bar > .profile-avatar-button {
+  display: block;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  max-width: 34px;
+  max-height: 34px;
+  flex: 0 0 34px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.profile-bar > .profile-avatar-button > .avatar-presence-wrap,
+.profile-bar > .profile-avatar-button > .avatar-background-wrap {
+  display: inline-grid !important;
+  position: relative;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  max-width: 34px !important;
+  max-height: 34px !important;
+  flex: 0 0 34px !important;
+  overflow: hidden;
+  border-radius: 50%;
+  place-items: center;
+}
+.profile-bar .avatar-background-wrap > .self-avatar,
+.profile-bar .avatar-background-wrap > .profile-avatar-image,
+.profile-bar .avatar-presence-wrap .self-avatar,
+.profile-bar .avatar-presence-wrap .profile-avatar-image {
+  display: block !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  max-width: 34px !important;
+  max-height: 34px !important;
+  flex: 0 0 34px !important;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.profile-bar .avatar-presence-wrap > .presence-dot {
+  right: 0;
+  bottom: 0;
+}
+.profile-bar .profile-copy { flex: 1 1 0; min-width: 0; }
