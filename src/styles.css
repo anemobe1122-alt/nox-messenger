@@ -1322,3 +1322,13 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .voice-controls button.voice-connect { background:#218b59; }
 .voice-beta-note { display:block;margin-top:18px; }
 .voice-hidden { display:none !important; }
+
+
+/* Live voice activity indicator */
+.voice-participant { position:relative; transition:background .16s ease, box-shadow .16s ease; }
+.voice-participant.is-speaking { background:rgba(54,181,107,.16); box-shadow:0 0 0 2px #36b56b, 0 0 18px rgba(54,181,107,.32); }
+.voice-participant.is-speaking .avatar,
+.voice-participant.is-speaking .voice-peer-avatar { box-shadow:0 0 0 3px #36b56b, 0 0 14px rgba(54,181,107,.6); }
+.voice-participant.is-speaking>i { background:#36d477; box-shadow:0 0 0 4px rgba(54,181,107,.16),0 0 12px #36d477; }
+.speaking-label { color:#5cdb8a; font-size:11px; font-weight:700; margin-left:4px; animation:voice-speaking-pulse 1s ease-in-out infinite; }
+@keyframes voice-speaking-pulse { 50% { opacity:.55; } }
