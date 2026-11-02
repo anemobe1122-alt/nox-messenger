@@ -1857,7 +1857,7 @@ export default function App() {
               <div className="profile-preview-banner" style={{ backgroundColor: nitroAccentDraft, backgroundImage: nitroBannerDraft.trim() ? `url("${nitroBannerDraft.trim()}")` : undefined }} />
               <div className="profile-preview-content">
                 <div className="profile-preview-avatar" style={{ backgroundColor: nitroAvatarBgDraft }}>
-                  <ProfileAvatar profile={profile} name={profileNameDraft || currentName} avatarBackground={nitroAvatarBgDraft} className={`avatar ${nitroFrameDraft !== "none" ? `nitro-frame-${nitroFrameDraft}` : ""}`} />
+                  <ProfileCardAvatar profile={profile} name={profileNameDraft || currentName} avatarBackground={nitroAvatarBgDraft} frameClass={nitroFrameDraft !== "none" ? `nitro-frame-${nitroFrameDraft}` : ""} />
                 </div>
                 <strong>{profileNameDraft || currentName}</strong>
                 <span>@{profileUsernameDraft || profile?.username}</span>
