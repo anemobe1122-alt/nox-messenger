@@ -1236,3 +1236,35 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   outline:none !important;
   box-shadow:none !important;
 }
+
+
+/* Remove the dark inner ring around the own-profile avatar: let the photo fill its mount */
+.profile-popover-avatar {
+  box-sizing:border-box !important;
+  width:68px !important;
+  height:68px !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  overflow:visible !important;
+}
+.profile-popover-avatar > .avatar-presence-wrap,
+.profile-popover-avatar .avatar-background-wrap {
+  width:68px !important;
+  height:68px !important;
+  min-width:68px !important;
+  min-height:68px !important;
+  max-width:68px !important;
+  max-height:68px !important;
+}
+.profile-popover-avatar .avatar-background-wrap > .profile-avatar-image,
+.profile-popover-avatar .avatar-background-wrap > .avatar {
+  width:68px !important;
+  height:68px !important;
+  min-width:68px !important;
+  min-height:68px !important;
+  max-width:68px !important;
+  max-height:68px !important;
+  border:0 !important;
+  object-fit:cover !important;
+}
