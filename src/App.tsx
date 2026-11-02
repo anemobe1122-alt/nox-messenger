@@ -9,7 +9,7 @@ import {
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 
 type PresenceStatus = "online" | "idle" | "dnd" | "invisible";
-type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus; bio?: string | null };
+type Profile = { id: string; username: string; display_name: string | null; avatar_url?: string | null; presence_status?: PresenceStatus; bio?: string | null; nitro_expires_at?: string | null };
 type DmContact = Profile & { conversationId?: string };
 type FriendRelation = Profile & { requestId: string; requesterId: string; addresseeId: string; status: "pending" | "accepted" };
 type Space = { id: string; name: string; owner_id?: string; created_at?: string };
@@ -47,6 +47,11 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profilePopoverOpen, setProfilePopoverOpen] = useState(false);
+  const [isNoxAdmin, setIsNoxAdmin] = useState(false);
+  const [nitroAdminOpen, setNitroAdminOpen] = useState(false);
+  const [nitroTargetUsername, setNitroTargetUsername] = useState("");
+  const [nitroDays, setNitroDays] = useState("30");
+  const [nitroAdminBusy, setNitroAdminBusy] = useState(false);
   const [memberCardProfile, setMemberCardProfile] = useState<Profile | null>(null);
   const [memberCardAnchor, setMemberCardAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [memberCardIsOwn, setMemberCardIsOwn] = useState(false);
@@ -123,6 +128,43 @@ export default function App() {
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [membersOpen, setMembersOpen] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function checkNoxAdmin() {
+      if (!supabase || !user) { setIsNoxAdmin(false); return; }
+      const { data, error } = await supabase.rpc("is_nox_admin");
+      if (!cancelled) setIsNoxAdmin(!error && data === true);
+    }
+    void checkNoxAdmin();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  async function submitNitroGrant(event: FormEvent) {
+    event.preventDefault();
+    if (!supabase || !isNoxAdmin) return;
+    const username = nitroTargetUsername.trim().replace(/^@/, "");
+    const days = Number(nitroDays);
+    if (!username || !Number.isInteger(days) || days < 1 || days > 3650) {
+      showNotice("Укажи ник и срок от 1 до 3650 дней.");
+      return;
+    }
+    setNitroAdminBusy(true);
+    const { data, error } = await supabase.rpc("admin_grant_nitro", { target_username: username, duration_days: days });
+    setNitroAdminBusy(false);
+    if (error) { showNotice("Не удалось выдать Nitro: " + error.message); return; }
+    showNotice(`Nitro выдан пользователю @${username} до ${new Date(data).toLocaleDateString("ru-RU")}.`);
+    setNitroTargetUsername("");
+  }
+
+  async function revokeNitro(username: string) {
+    if (!supabase || !isNoxAdmin) return;
+    setNitroAdminBusy(true);
+    const { error } = await supabase.rpc("admin_revoke_nitro", { target_username: username.trim().replace(/^@/, "") });
+    setNitroAdminBusy(false);
+    if (error) { showNotice("Не удалось снять Nitro: " + error.message); return; }
+    showNotice("Nitro снят с @" + username.replace(/^@/, "") + ".");
+  }
 
   const activeDmContact = dmContacts.find((contact) => contact.id === activeDm);
   const activeDmKey = activeDmContact?.conversationId || activeDm;
@@ -1454,6 +1496,8 @@ export default function App() {
             <strong>{currentName}</strong>
             <span className="profile-popover-username">@{profile?.username || "profile"}</span>
             <div className="profile-popover-status"><i className={`presence-dot status-${presence}`}/>{presenceLabel(presence)}</div>
+            {profile?.nitro_expires_at && new Date(profile.nitro_expires_at).getTime() > Date.now() && <span className="nox-nitro-badge">💎 NOX NITRO</span>}
+            {isNoxAdmin && <button type="button" className="nitro-admin-open" onClick={() => { setNitroAdminOpen(true); setProfilePopoverOpen(false); }}>💎 Панель выдачи Nitro</button>}
             <div className="profile-popover-bio">{profile?.bio?.trim() || "Пока без описания."}</div>
             <button type="button" className="profile-edit-button" onClick={openProfileSettings}><Settings size={15}/> Редактировать профиль</button>
           </div>
@@ -1475,6 +1519,19 @@ export default function App() {
           </div>
         </section>
       </>}
+
+      {nitroAdminOpen && isNoxAdmin && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setNitroAdminOpen(false); }}>
+        <form className="modal nitro-admin-modal" onSubmit={submitNitroGrant}>
+          <button type="button" className="modal-close" onClick={() => setNitroAdminOpen(false)}><X size={19}/></button>
+          <h2>💎 Панель Nox Nitro</h2>
+          <p className="modal-subtitle">Выдача премиум-доступа пользователям</p>
+          <label>Ник пользователя<input value={nitroTargetUsername} onChange={(e) => setNitroTargetUsername(e.target.value)} placeholder="например, katayose" required /></label>
+          <label>Срок Nitro (дней)<input type="number" min="1" max="3650" step="1" value={nitroDays} onChange={(e) => setNitroDays(e.target.value)} required /></label>
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => { setNitroAdminOpen(false); setNitroTargetUsername(""); }}>Закрыть</button><button className="primary-button" disabled={nitroAdminBusy}>{nitroAdminBusy ? "Выдаю…" : "Выдать Nitro"}</button></div>
+          <p className="nitro-admin-hint">Чтобы снять Nitro, введи ник и нажми кнопку ниже.</p>
+          <button type="button" className="danger-button" disabled={nitroAdminBusy || !nitroTargetUsername.trim()} onClick={() => void revokeNitro(nitroTargetUsername)}>Снять Nitro у пользователя</button>
+        </form>
+      </div>}
 
       {profileSettingsOpen && <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setProfileSettingsOpen(false); }}>
         <form className="modal profile-edit-modal" onSubmit={saveProfileSettings}>
