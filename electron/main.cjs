@@ -25,7 +25,7 @@ async function checkForNoxUpdates() {
     if (!latest || compareVersions(latest, app.getVersion()) <= 0) return;
 
     const installer = (release.assets || []).find((asset) =>
-      /\\.exe$/i.test(asset.name) && /(setup|installer)/i.test(asset.name)
+      /\.exe$/i.test(asset.name) && /(setup|installer)/i.test(asset.name)
     );
     if (!installer?.browser_download_url) {
       const result = await dialog.showMessageBox(mainWindow, {
